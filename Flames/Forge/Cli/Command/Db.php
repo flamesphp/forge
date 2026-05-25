@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command;
 
 use Flames\Forge\Cli\Output;
@@ -30,7 +32,7 @@ final class Db
     protected string|null $sql        = null;
     protected string|null $mode       = null;  // null=shell, model-list, wipe, truncate, migrate
 
-    public function __construct($data)
+    public function __construct(mixed $data)
     {
         $args = array_values(array_slice($_SERVER['argv'], 2));
 
@@ -555,7 +557,7 @@ final class Db
     protected static function readEnv(): array
     {
         $path = ROOT_PATH . '.env';
-        if (file_exists($path) === false) {
+        if (!file_exists($path)) {
             return [];
         }
 

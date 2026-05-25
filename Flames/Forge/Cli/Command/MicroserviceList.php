@@ -1,33 +1,31 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command;
 
 use Flames\Forge\Cli\Output;
 use Flames\Kernel\Config;
 
 /**
- * @internal
- *
  * Lists all microservices defined in config.yml.
  *
- * Usage:
- *   forge microservice:list
+ * @internal
  */
 final class MicroserviceList
 {
-    public function __construct($data) {}
+    public function __construct(mixed $data) {}
 
     public function run(bool $debug = false): bool
     {
-        $config       = Config::get();
+        $config        = Config::get();
         $microservices = $config['microservices'] ?? [];
 
         echo "\n" . Output::YELLOW . Output::BOLD . "  MICROSERVICES" . Output::RESET . "\n\n";
 
-        // Default App microservice is always present
         echo '  '
-            . Output::GREEN . Output::BOLD . str_pad('App', 20)     . Output::RESET
-            . Output::GRAY  . '(default)'                            . Output::RESET
+            . Output::GREEN . Output::BOLD . str_pad('App', 20) . Output::RESET
+            . Output::GRAY  . '(default)'                        . Output::RESET
             . "\n";
 
         if (empty($microservices)) {
@@ -46,7 +44,7 @@ final class MicroserviceList
                 : Output::CYAN . implode(Output::RESET . ', ' . Output::CYAN, $hosts) . Output::RESET;
 
             echo '  '
-                . Output::GREEN . Output::BOLD . str_pad($namespace, 20) . Output::RESET
+                . Output::GREEN . Output::BOLD . str_pad((string)$namespace, 20) . Output::RESET
                 . $hostStr
                 . "\n";
         }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command;
 
 use Flames\Forge\Cli\Output;
@@ -27,7 +29,7 @@ final class Shell
     protected const HISTORY_FILE = '~/.flames_shell_history';
     private const   SUPER_GLOBALS = ['_GET', '_POST', '_COOKIE', '_FILES', '_SERVER', '_ENV', '_REQUEST', '_SESSION', 'GLOBALS', 'argv', 'argc'];
 
-    public function __construct($data) {}
+    public function __construct(mixed $data) {}
 
     public function run(bool $debug = false): bool
     {

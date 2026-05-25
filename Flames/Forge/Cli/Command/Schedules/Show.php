@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Schedules;
 
 use Flames\Forge\Cli\Output;
@@ -11,7 +13,7 @@ use Flames\Server\Process;
  */
 final class Show
 {
-    public function __construct($data) {}
+    public function __construct(mixed $data) {}
 
     public function run(bool $debug = false): bool
     {
@@ -20,7 +22,7 @@ final class Show
 
         Output::section('Schedule Status');
 
-        if (empty($schedules) === true) {
+        if (empty($schedules)) {
             Output::warning('No schedules defined in config.yml.');
             Output::blank();
             return true;
@@ -28,8 +30,8 @@ final class Show
 
         $cacheDir = ROOT_PATH . '.cache/.flames/schedules/';
         $now      = time();
+        $col      = [18, 14, 14, 8, 11];
 
-        $col = [18, 14, 14, 8, 11];
         self::row(['NAME', 'LAST RUN', 'NEXT RUN', 'PID', 'STATUS'], $col, true);
         self::divider($col);
 
@@ -39,12 +41,14 @@ final class Show
 
             $cacheFile = $cacheDir . $name . '.json';
             $lastRun   = null;
-            if (file_exists($cacheFile) === true) {
-                $cached  = json_decode(file_get_contents($cacheFile), true);
-                $lastRun = $cached['last_run'] ?? null;
+
+            if (file_exists($cacheFile)) {
+                $cached  = json_decode((string)file_get_contents($cacheFile), true);
+                $lastRun = isset($cached['last_run']) ? (int)$cached['last_run'] : null;
             }
 
-            $lastRunLabel = $lastRun !== null ? self::formatElapsed($now - $lastRun) : 'never';
+            $elapsed      = $lastRun !== null ? $now - $lastRun : null;
+            $lastRunLabel = $elapsed !== null ? self::formatElapsed($elapsed) : 'never';
             $nextRunLabel = ($lastRun !== null && $interval > 0)
                 ? self::formatNext(($lastRun + $interval) - $now)
                 : ($interval > 0 ? 'now' : '—');
@@ -52,13 +56,11 @@ final class Show
             [$pids, $recentlyDone] = self::getLockStatus($cacheDir, $name, $now);
             $pidStr = empty($pids) ? '—' : implode(',', $pids);
 
-            if (empty($pids) === false) {
-                $status = Output::GREEN . Output::BOLD . 'running' . Output::RESET;
-            } elseif ($recentlyDone) {
-                $status = Output::CYAN . 'completed' . Output::RESET;
-            } else {
-                $status = Output::GRAY . 'idle' . Output::RESET;
-            }
+            $status = match (true) {
+                !empty($pids)  => Output::GREEN . Output::BOLD . 'running' . Output::RESET,
+                $recentlyDone  => Output::CYAN . 'completed' . Output::RESET,
+                default        => Output::GRAY . 'idle' . Output::RESET,
+            };
 
             self::row([$name, $lastRunLabel, $nextRunLabel, $pidStr, $status], $col);
         }
@@ -69,65 +71,65 @@ final class Show
 
     /**
      * Returns [$runningPids, $recentlyCompleted].
-     * Lock files for dead processes are kept for 30 s then cleaned up.
      */
-    protected static function getLockStatus(string $cacheDir, string $name, int $now): array
+    private static function getLockStatus(string $cacheDir, string $name, int $now): array
     {
         $running      = [];
         $recentlyDone = false;
 
         foreach (glob($cacheDir . $name . '.*.lock') ?: [] as $lockFile) {
-            $data       = json_decode(file_get_contents($lockFile), true);
-            $pid        = (int)($data['pid']        ?? 0);
-            $startedAt  = (int)($data['started_at'] ?? 0);
+            $data      = json_decode((string)file_get_contents($lockFile), true);
+            $pid       = (int)($data['pid']        ?? 0);
+            $startedAt = (int)($data['started_at'] ?? 0);
 
-            if ($pid > 0 && Process::isRunning($pid) === true) {
+            if ($pid > 0 && Process::isRunning($pid)) {
                 $running[] = $pid;
+            } elseif (($now - $startedAt) < 30) {
+                $recentlyDone = true;
             } else {
-                // Keep the lock file visible for 30 s so the user can see
-                // "completed" before it disappears.
-                if (($now - $startedAt) < 30) {
-                    $recentlyDone = true;
-                } else {
-                    @unlink($lockFile);
-                }
+                @unlink($lockFile);
             }
         }
 
         return [$running, $recentlyDone];
     }
 
-    protected static function formatElapsed(int $seconds): string
+    private static function formatElapsed(int $seconds): string
     {
-        if ($seconds < 0)    return 'just now';
-        if ($seconds < 60)   return $seconds . 's ago';
-        if ($seconds < 3600) return floor($seconds / 60) . 'm ago';
-        return floor($seconds / 3600) . 'h ago';
+        return match (true) {
+            $seconds < 0    => 'just now',
+            $seconds < 60   => $seconds . 's ago',
+            $seconds < 3600 => floor($seconds / 60) . 'm ago',
+            default         => floor($seconds / 3600) . 'h ago',
+        };
     }
 
-    protected static function formatNext(int $seconds): string
+    private static function formatNext(int $seconds): string
     {
-        if ($seconds <= 0)   return 'now';
-        if ($seconds < 60)   return 'in ' . $seconds . 's';
-        if ($seconds < 3600) return 'in ' . floor($seconds / 60) . 'm';
-        return 'in ' . floor($seconds / 3600) . 'h';
+        return match (true) {
+            $seconds <= 0   => 'now',
+            $seconds < 60   => 'in ' . $seconds . 's',
+            $seconds < 3600 => 'in ' . floor($seconds / 60) . 'm',
+            default         => 'in ' . floor($seconds / 3600) . 'h',
+        };
     }
 
-    protected static function row(array $cells, array $widths, bool $header = false): void
+    private static function row(array $cells, array $widths, bool $header = false): void
     {
         $color = $header ? Output::YELLOW . Output::BOLD : Output::WHITE;
         $line  = '  ';
+
         foreach ($cells as $i => $cell) {
-            $w    = $widths[$i] ?? 14;
-            // Strip ANSI codes for padding calculation
+            $w     = $widths[$i] ?? 14;
             $plain = preg_replace('/\033\[[0-9;]*m/', '', (string)$cell);
             $pad   = max(0, $w - strlen($plain));
             $line .= $color . $cell . Output::RESET . str_repeat(' ', $pad + 2);
         }
+
         echo $line . "\n";
     }
 
-    protected static function divider(array $widths): void
+    private static function divider(array $widths): void
     {
         $line = '  ';
         foreach ($widths as $w) {

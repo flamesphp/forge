@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Schedules;
 
 use Flames\Forge\Cli\Output;
@@ -12,32 +14,31 @@ use Flames\Server\Process;
  */
 final class Run
 {
-    // How long (seconds) the command loops before exiting, so cron can call
-    // it every minute and sub-minute schedules are handled inside the window.
-    const LOOP_DURATION = 59;
+    /** How long (seconds) the command loops so cron-triggered sub-minute schedules are handled. */
+    private const LOOP_DURATION = 59;
 
-    public function __construct($data) {}
+    public function __construct(mixed $data) {}
 
     public function run(bool $debug = false): bool
     {
         $config    = Config::get();
         $schedules = $config['schedules'] ?? [];
 
-        if (empty($schedules) === true) {
-            if ($debug === true) {
+        if (empty($schedules)) {
+            if ($debug) {
                 Output::info('No schedules configured.');
             }
             return true;
         }
 
         $cacheDir = ROOT_PATH . '.cache/.flames/schedules/';
-        if (is_dir($cacheDir) === false) {
+        if (!is_dir($cacheDir)) {
             $mask = umask(0);
             mkdir($cacheDir, 0777, true);
             umask($mask);
         }
 
-        if (self::hasSubMinuteSchedules($schedules) === true) {
+        if (self::hasSubMinuteSchedules($schedules)) {
             $start = time();
             while ((time() - $start) < self::LOOP_DURATION) {
                 $tickStart = microtime(true);
@@ -55,19 +56,18 @@ final class Run
         return true;
     }
 
-    protected function tick(array $schedules, string $cacheDir, bool $debug): void
+    private function tick(array $schedules, string $cacheDir, bool $debug): void
     {
         $now    = time();
         $phpBin = PHP_BINARY;
-        $bin    = ROOT_PATH . 'forge';
 
         foreach ($schedules as $name => $schedule) {
-            $command     = $schedule['command']           ?? null;
-            $every       = $schedule['run']['every']      ?? [];
-            $overlapping = $schedule['overlapping']       ?? true;
+            $command     = $schedule['command']            ?? null;
+            $every       = $schedule['run']['every']       ?? [];
+            $overlapping = $schedule['overlapping']        ?? true;
             $timeout     = $schedule['timeout']['seconds'] ?? null;
 
-            if (empty($command) === true || empty($every) === true) {
+            if (empty($command) || empty($every)) {
                 continue;
             }
 
@@ -79,93 +79,81 @@ final class Run
             $cacheFile = $cacheDir . $name . '.json';
             $lastRun   = 0;
 
-            if (file_exists($cacheFile) === true) {
-                $cached  = json_decode(file_get_contents($cacheFile), true);
-                $lastRun = $cached['last_run'] ?? 0;
+            if (file_exists($cacheFile)) {
+                $cached  = json_decode((string)file_get_contents($cacheFile), true, flags: JSON_THROW_ON_ERROR);
+                $lastRun = (int)($cached['last_run'] ?? 0);
             }
 
             if (($now - $lastRun) < $interval) {
                 continue;
             }
 
-            // overlapping=false: skip if a process for this schedule is alive
-            if ($overlapping === false && self::hasRunningLocks($cacheDir, $name) === true) {
-                if ($debug === true) {
+            if ($overlapping === false && self::hasRunningLocks($cacheDir, $name)) {
+                if ($debug) {
                     Output::warning("Schedule '{$name}' skipped — overlapping=false and still running.");
                 }
                 continue;
             }
 
-            // Persist timestamp BEFORE launching so a slow command does not
-            // cause duplicate executions on the next cron / loop tick.
             file_put_contents($cacheFile, json_encode([
                 'name'     => $name,
                 'command'  => $command,
                 'last_run' => $now,
-            ], JSON_PRETTY_PRINT));
+            ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
 
-            if ($debug === true) {
+            if ($debug) {
                 Output::info("Launching schedule '{$name}' → {$command}");
             }
 
-            $pid = self::launch($name, $command, $phpBin, $bin, $timeout, $cacheDir);
+            $pid = self::launch($name, $command, $phpBin, $timeout, $cacheDir);
 
             if ($pid > 0) {
-                $lockFile = $cacheDir . $name . '.' . $pid . '.lock';
-                file_put_contents($lockFile, json_encode([
-                    'name'       => $name,
-                    'command'    => $command,
-                    'pid'        => $pid,
-                    'started_at' => $now,
-                    'timeout'    => $timeout,
-                ], JSON_PRETTY_PRINT));
+                file_put_contents(
+                    $cacheDir . $name . '.' . $pid . '.lock',
+                    json_encode([
+                        'name'       => $name,
+                        'command'    => $command,
+                        'pid'        => $pid,
+                        'started_at' => $now,
+                        'timeout'    => $timeout,
+                    ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)
+                );
 
-                if ($debug === true) {
+                if ($debug) {
                     Output::success("Schedule '{$name}' running (pid: {$pid}).");
                 }
-            } elseif ($debug === true) {
+            } elseif ($debug) {
                 Output::error("Schedule '{$name}' failed to launch (could not obtain PID).");
             }
         }
     }
 
-    /**
-     * Launches the schedule command as a background process.
-     * Stderr is redirected to .cache/.flames/schedules/{name}.log for debugging.
-     * Returns the PID, or 0 on failure.
-     */
-    protected static function launch(
+    private static function launch(
         string $name,
         string $command,
         string $phpBin,
-        string $bin,
         int|null $timeout,
         string $cacheDir
     ): int {
         $logFile = $cacheDir . $name . '.log';
-        // Use a relative "forge" path so that $_SERVER['SCRIPT_FILENAME']
-        // equals 'forge', which Cli::isCli() requires.
-        $phpCmd = escapeshellcmd($phpBin) . ' forge ' . escapeshellarg($command);
+        $phpCmd  = escapeshellcmd($phpBin) . ' forge ' . escapeshellarg($command);
 
-        if ($timeout !== null && Os::isUnix() === true) {
-            $phpCmd = 'timeout ' . (int)$timeout . ' ' . $phpCmd;
+        if ($timeout !== null && Os::isUnix()) {
+            $phpCmd = 'timeout ' . $timeout . ' ' . $phpCmd;
         }
 
-        // cd first, then run — timeout wraps only the php invocation, not cd.
         $cmd = 'cd ' . escapeshellarg(ROOT_PATH) . ' && ' . $phpCmd;
 
-        if (Os::isUnix() === true) {
+        if (Os::isUnix()) {
             $fullCmd = $cmd . ' >> ' . escapeshellarg($logFile) . ' 2>&1 & echo $!';
             exec($fullCmd, $output);
             $pid = (int)($output[0] ?? 0);
 
-            // Brief pause to let the process register in /proc
             if ($pid > 0) {
                 usleep(50_000);
             }
 
-            // Double-check via /proc to confirm the PID is real
-            if ($pid > 0 && Os::isLinux() === true && file_exists('/proc/' . $pid) === false) {
+            if ($pid > 0 && Os::isLinux() && !file_exists('/proc/' . $pid)) {
                 return 0;
             }
 
@@ -173,10 +161,7 @@ final class Run
         }
 
         // Windows fallback
-        if ($procSocket = proc_open('start /b ' . $cmd, [
-            0 => ['pipe', 'r'],
-            1 => ['pipe', 'w'],
-        ], $pipes)) {
+        if ($procSocket = proc_open('start /b ' . $cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w']], $pipes)) {
             $status = proc_get_status($procSocket);
             return (int)($status['pid'] ?? 0);
         }
@@ -184,18 +169,18 @@ final class Run
         return 0;
     }
 
-    protected static function hasRunningLocks(string $cacheDir, string $name): bool
+    private static function hasRunningLocks(string $cacheDir, string $name): bool
     {
-        $now     = time();
-        $pattern = $cacheDir . $name . '.*.lock';
-        foreach (glob($pattern) ?: [] as $lockFile) {
-            $data      = json_decode(file_get_contents($lockFile), true);
+        $now = time();
+        foreach (glob($cacheDir . $name . '.*.lock') ?: [] as $lockFile) {
+            $data      = json_decode((string)file_get_contents($lockFile), true);
             $pid       = (int)($data['pid']        ?? 0);
             $startedAt = (int)($data['started_at'] ?? 0);
-            if ($pid > 0 && Process::isRunning($pid) === true) {
+
+            if ($pid > 0 && Process::isRunning($pid)) {
                 return true;
             }
-            // Clean up only locks older than 30 s so Show can display "completed"
+
             if (($now - $startedAt) >= 30) {
                 @unlink($lockFile);
             }
@@ -203,11 +188,10 @@ final class Run
         return false;
     }
 
-    protected static function hasSubMinuteSchedules(array $schedules): bool
+    private static function hasSubMinuteSchedules(array $schedules): bool
     {
         foreach ($schedules as $schedule) {
-            $every = $schedule['run']['every'] ?? [];
-            if (empty($every['second']) === false) {
+            if (!empty($schedule['run']['every']['second'])) {
                 return true;
             }
         }
@@ -216,12 +200,10 @@ final class Run
 
     public static function calculateInterval(array $every): int
     {
-        $seconds = 0;
-        if (!empty($every['second'])) $seconds += (int)$every['second'];
-        if (!empty($every['minute'])) $seconds += (int)$every['minute'] * 60;
-        if (!empty($every['hour']))   $seconds += (int)$every['hour']   * 3600;
-        if (!empty($every['day']))    $seconds += (int)$every['day']    * 86400;
-        if (!empty($every['month']))  $seconds += (int)$every['month']  * 2592000;
-        return $seconds;
+        return (int)($every['second'] ?? 0)
+             + (int)($every['minute'] ?? 0) * 60
+             + (int)($every['hour']   ?? 0) * 3_600
+             + (int)($every['day']    ?? 0) * 86_400
+             + (int)($every['month']  ?? 0) * 2_592_000;
     }
 }

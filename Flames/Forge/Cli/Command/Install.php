@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command;
 
 use Flames\Crypto\Hash;
@@ -11,7 +13,7 @@ use Flames\Server\Os;
  */
 final class Install
 {
-    public function __construct($data) {}
+    public function __construct(mixed $data) {}
 
     public function run(bool $debug = false): bool
     {
@@ -19,11 +21,11 @@ final class Install
         $this->copyIndex();
         $this->copyHtaccess();
         $this->copyForge();
+        $this->copyDockerCompose();
         $this->generateKeys();
 
         if (Os::isUnix()) {
-            $inject = new Inject(null);
-            $inject->run(false, true);
+            (new Inject(null))->run(false, true);
         }
 
         return true;
@@ -32,12 +34,12 @@ final class Install
     private function copyEnv(): void
     {
         $envPath = ROOT_PATH . '.env';
-        if (file_exists($envPath) === true) {
+        if (file_exists($envPath)) {
             return;
         }
 
         $examplePath = ROOT_PATH . 'vendor/flamesphp/example/.env.example';
-        if (file_exists($examplePath) === true) {
+        if (file_exists($examplePath)) {
             copy($examplePath, $envPath);
         }
     }
@@ -45,12 +47,12 @@ final class Install
     private function copyIndex(): void
     {
         $indexPath = ROOT_PATH . 'index.php';
-        if (file_exists($indexPath) === true) {
+        if (file_exists($indexPath)) {
             return;
         }
 
         $examplePath = ROOT_PATH . 'vendor/flamesphp/example/index.php';
-        if (file_exists($examplePath) === true) {
+        if (file_exists($examplePath)) {
             copy($examplePath, $indexPath);
         }
     }
@@ -58,40 +60,51 @@ final class Install
     private function copyHtaccess(): void
     {
         $htaccessPath = ROOT_PATH . '.htaccess';
-        if (file_exists($htaccessPath) === true) {
+        if (file_exists($htaccessPath)) {
             return;
         }
 
         $examplePath = ROOT_PATH . 'vendor/flamesphp/example/.htaccess';
-        if (file_exists($examplePath) === true) {
+        if (file_exists($examplePath)) {
             copy($examplePath, $htaccessPath);
         }
     }
 
     private function copyForge(): void
     {
-        $forgePath        = ROOT_PATH . 'forge';
+        $forgePath         = ROOT_PATH . 'forge';
         $forgeResourcePath = ROOT_PATH . 'vendor/flamesphp/forge/resource/forge';
 
-        if (file_exists($forgeResourcePath) === false) {
+        if (!file_exists($forgeResourcePath)) {
             return;
         }
 
-        $shouldCopy = (file_exists($forgePath) === false);
-        if ($shouldCopy === false) {
-            $shouldCopy = (file_get_contents($forgePath) !== file_get_contents($forgeResourcePath));
+        $shouldCopy = !file_exists($forgePath)
+            || file_get_contents($forgePath) !== file_get_contents($forgeResourcePath);
+
+        if ($shouldCopy) {
+            copy($forgeResourcePath, $forgePath);
+            chmod($forgePath, 0755);
+        }
+    }
+
+    private function copyDockerCompose(): void
+    {
+        $dockerComposePath = ROOT_PATH . 'docker-compose.yml';
+        if (file_exists($dockerComposePath)) {
+            return;
         }
 
-        if ($shouldCopy === true) {
-            copy($forgeResourcePath, $forgePath);
-            @chmod($forgePath, 0755);
+        $sourcePath = ROOT_PATH . 'vendor/flamesphp/docker/resources/docker-compose.yml';
+        if (file_exists($sourcePath)) {
+            copy($sourcePath, $dockerComposePath);
         }
     }
 
     private function generateKeys(): void
     {
         $environment = Environment::default();
-        if ($environment->isValid() === false) {
+        if (!$environment->isValid()) {
             return;
         }
 
@@ -107,7 +120,7 @@ final class Install
             $changed = true;
         }
 
-        if ($changed === true) {
+        if ($changed) {
             $environment->save();
         }
     }

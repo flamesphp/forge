@@ -1,14 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command;
 
-use Flames\Forge\Cli\Output;
+use Flames\Library\AutoLoad;
+use Flames\Library\Composer\Console\Application;
+use Flames\Library\Symfony\Component\Console\Input\StringInput;
+use Flames\Library\Symfony\Component\Console\Output\ConsoleOutput;
 
 /**
- * @internal
- *
- * Wraps the bundled composer.phar so that packages can be managed without
- * requiring a system-wide Composer installation.
+ * Runs Composer operations programmatically via the scoped Flames\Library\Composer
+ * classes — no CLI binary required.
  *
  * Usage examples:
  *   forge library require vendor/package
@@ -18,13 +21,15 @@ use Flames\Forge\Cli\Output;
  *   forge library audit
  *   forge library validate
  *   forge library {any-composer-command} [args...]
+ *
+ * @internal
  */
 final class Package
 {
-    // Raw args after "package" (unprocessed so they go straight to composer)
-    protected array $args = [];
+    /** @var list<string> */
+    private readonly array $args;
 
-    public function __construct($data)
+    public function __construct(mixed $data)
     {
         $this->args = array_values(array_slice($_SERVER['argv'], 2));
     }
@@ -35,42 +40,17 @@ final class Package
             ob_end_clean();
         }
 
-        $composerPhar = self::composerPath();
-
-        if ($composerPhar === null) {
-            Output::error('composer.phar not found in Flames/Kernel/Tools/.');
-            return false;
-        }
-
-        $phpBin = escapeshellcmd(PHP_BINARY);
-
-        if (empty($this->args) === true) {
-            // No sub-command → show composer help
-            passthru($phpBin . ' ' . escapeshellarg($composerPhar) . ' --ansi list', $code);
-            return $code === 0;
-        }
-
-        // Build the composer command — pass all args verbatim
-        $argsStr = implode(' ', array_map('escapeshellarg', $this->args));
-
-        // Always add --ansi so output is colourful in the terminal
-        $cmd = $phpBin . ' ' . escapeshellarg($composerPhar) . ' --ansi ' . $argsStr;
-
+        AutoLoad::register();
         chdir(ROOT_PATH);
-        passthru($cmd, $code);
-        return $code === 0;
-    }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────────
+        $inputStr = empty($this->args)
+            ? 'list --ansi'
+            : implode(' ', array_map('escapeshellarg', $this->args)) . ' --ansi';
 
-    /**
-     * Returns the absolute path to the bundled composer.phar, or null if not found.
-     */
-    public static function composerPath(): ?string
-    {
-        $path = FLAMES_PATH . 'Kernel/Tools/composer.phar';
-        return file_exists($path) ? $path : null;
+        $app = new Application();
+        $app->setAutoExit(false);
+        $app->setCatchExceptions(true);
+
+        return $app->run(new StringInput($inputStr), new ConsoleOutput()) === 0;
     }
 }

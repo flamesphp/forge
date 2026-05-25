@@ -1,194 +1,128 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Build\Assets;
 
-use Flames\Forge\Cli;
-use Flames\Forge\Cli\Command\Build\Assets\Data;
-use Flames\Command;
 use Flames\Environment;
 
 /**
- * Class Assets
- *
- * This class is responsible for handling the build assets data for the Flames CLI command.
+ * Computes a hash of all client-side files to detect changes for auto-build.
  *
  * @internal
  */
 final class Automate
 {
-    protected bool $debug = false;
-    protected ?array $ignorePaths = null;
-    protected ?array $files = null;
+    private bool $debug = false;
 
-    public function run(bool $debug = false) : bool
+    /** @var list<string>|null */
+    private ?array $ignorePaths = null;
+
+    /** @var list<array{path:string,changed:int,type:string}>|null */
+    private ?array $files = null;
+
+    public function run(bool $debug = false): bool
     {
         $this->debug = $debug;
 
-        if ($this->debug === true) {
+        if ($this->debug) {
             echo 'Current modified hash: ' . $this->getCurrentHash();
         }
 
         return true;
     }
 
-    public function getCurrentHash()
+    public function getCurrentHash(): string
     {
         $ignorePath = Environment::get('AUTO_BUILD_IGNORE_PATHS');
-
         if ($ignorePath !== null) {
-            $ignorePathSplit = explode(',', $ignorePath);
-            if (is_array($ignorePathSplit)) {
-                $this->ignorePaths = $ignorePathSplit;
+            $parts = explode(',', (string)$ignorePath);
+            if (!empty($parts)) {
+                $this->ignorePaths = $parts;
             }
         }
 
-        $this->getCurrentFileTimes();
+        $this->buildFileTimes();
         return sha1(serialize($this->files));
     }
 
-    protected function getFileModified()
-    {
-        foreach ($this->files as $file) {
-            if (file_exists($file['path']) === false) {
-                continue;
-            }
-
-            if (filemtime($file['path']) !== $file['changed']) {
-                return $file;
-            }
-        }
-    }
-
-    protected function getCurrentFileTimes()
+    private function buildFileTimes(): void
     {
         $this->files = [];
 
-        $files = [
-            'view' => $this->getViewDirContents(APP_PATH . 'Client/View/'),
-            'public' => $this->getPublicDirContents(APP_PATH . 'Client/Public/'),
-            'client' => $this->getClientDirContents(APP_PATH . 'Client/')
-        ];
-
-        $envFile = (ROOT_PATH . '.env');;
+        $envFile = ROOT_PATH . '.env';
         if (file_exists($envFile)) {
             $this->files[] = [
-                'path' => $envFile,
+                'path'    => $envFile,
                 'changed' => filemtime($envFile),
-                'type' => 'config'
+                'type'    => 'config',
             ];
         }
 
-        foreach ($files['view'] as $path) {
-            $this->files[] = [
-                'path' => $path,
-                'changed' => filemtime($path),
-                'type' => 'view'
-            ];
-        }
-
-        foreach ($files['public'] as $path) {
-            $this->files[] = [
-                'path' => $path,
-                'changed' => filemtime($path),
-                'type' => 'public'
-            ];
-        }
-
-        foreach ($files['client'] as $path) {
-            $this->files[] = [
-                'path' => $path,
-                'changed' => filemtime($path),
-                'type' => 'client'
-            ];
-        }
+        $this->collectFiles(APP_PATH . 'Client/View/',   'view',   ['.twig']);
+        $this->collectFiles(APP_PATH . 'Client/Public/', 'public', ['.css', '.scss', '.js', '.sass']);
+        $this->collectFiles(APP_PATH . 'Client/',        'client',  ['.php'], [
+            APP_PATH . 'Client/Public/',
+            APP_PATH . 'Client/View/',
+            APP_PATH . 'Client/Resource/',
+        ]);
     }
 
-    protected function getViewDirContents($dir, &$results = array())
+    /**
+     * Adds matching files from a directory to $this->files using the iterator's
+     * built-in getMTime() — avoids an extra filemtime() syscall per file.
+     *
+     * @param list<string> $extensions  Lowercase extensions to accept (with dot).
+     * @param list<string> $excludeDirs Absolute path prefixes to skip.
+     */
+    private function collectFiles(string $dir, string $type, array $extensions, array $excludeDirs = []): void
     {
-        $files = scandir($dir);
+        if (!is_dir($dir)) {
+            return;
+        }
 
-        foreach ($files as $key => $value) {
-            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS)
+        );
 
-            if ($this->ignorePaths !== null && $this->isIgnorePath($path) === true) {
+        foreach ($iterator as $item) {
+            /** @var \SplFileInfo $item */
+            if ($item->isDir()) {
                 continue;
             }
 
-            if (!is_dir($path)) {
-                $pathLower = strtolower($path);
-                if (str_ends_with($pathLower, '.twig') === true) {
-                    $results[] = $path;
+            $path = $item->getPathname();
+
+            foreach ($excludeDirs as $excl) {
+                if (str_starts_with($path, $excl)) {
+                    continue 2;
                 }
-            } else if ($value !== '.' && $value !== '..') {
-                $this->getViewDirContents($path, $results);
             }
-        }
 
-        return $results;
-    }
-
-    protected function getPublicDirContents($dir, &$results = array())
-    {
-        $files = scandir($dir);
-
-        foreach ($files as $key => $value) {
-            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
-
-            if ($this->ignorePaths !== null && $this->isIgnorePath($path) === true) {
+            if ($this->ignorePaths !== null && $this->isIgnored($path)) {
                 continue;
             }
 
-            if (!is_dir($path)) {
-                $pathLower = strtolower($path);
-                if (str_ends_with($pathLower, '.css')  === true || str_ends_with($pathLower, '.scss') === true || str_ends_with($pathLower, '.js') === true || str_ends_with($pathLower, '.sass') === true) {
-                    $results[] = $path;
-                }
-            } else if ($value !== '.' && $value !== '..') {
-                $this->getPublicDirContents($path, $results);
-            }
-        }
-
-        return $results;
-    }
-
-    protected function getClientDirContents($dir, &$results = array())
-    {
-        $files = scandir($dir);
-
-        foreach ($files as $key => $value) {
-            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
-
-            if (str_starts_with($path, APP_PATH . 'Client/Public/') === true ||
-                str_starts_with($path, APP_PATH . 'Client/View/') === true ||
-                str_starts_with($path, APP_PATH . 'Client/Resource/') === true) {
+            $ext = strtolower('.' . $item->getExtension());
+            if (!in_array($ext, $extensions, true)) {
                 continue;
             }
 
-            if ($this->ignorePaths !== null && $this->isIgnorePath($path) === true) {
-                continue;
-            }
-
-            if (!is_dir($path)) {
-                $pathLower = strtolower($path);
-                if (str_ends_with($pathLower, '.php') === true) {
-                    $results[] = $path;
-                }
-            } else if ($value !== '.' && $value !== '..') {
-                $this->getClientDirContents($path, $results);
-            }
+            $this->files[] = [
+                'path'    => $path,
+                'changed' => $item->getMTime(),
+                'type'    => $type,
+            ];
         }
-
-        return $results;
     }
 
-    protected function isIgnorePath(string $path) : bool
+    private function isIgnored(string $path): bool
     {
-        foreach ($this->ignorePaths as $ignorePath) {
-            if (str_starts_with($path, ROOT_PATH . $ignorePath) === true) {
+        foreach ($this->ignorePaths as $ignored) {
+            if (str_starts_with($path, ROOT_PATH . $ignored)) {
                 return true;
             }
         }
-
         return false;
     }
 }

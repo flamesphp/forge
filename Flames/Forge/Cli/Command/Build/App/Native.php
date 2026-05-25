@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Build\App;
 
 use Flames\Collection\Arr;
@@ -28,26 +30,17 @@ class Native
     protected bool $installer = false;
     protected bool $run = false;
 
-    public function __construct($data)
+    public function __construct(mixed $data)
     {
-        if ($data->option->contains('windows') === true) {
-            $this->platform = 'windows';
-        }
-        if ($data->option->contains('linux') === true) {
-            $this->platform = 'linux';
-        }
-        if ($data->option->contains('installer') === true) {
-            $this->installer = true;
-        }
-        if ($data->option->contains('run') === true) {
-            $this->run = true;
-        }
+        if ($data->option->contains('windows')) { $this->platform = 'windows'; }
+        if ($data->option->contains('linux'))   { $this->platform = 'linux'; }
+        $this->installer = (bool)($data->option->contains('installer') ?? false);
+        $this->run       = (bool)($data->option->contains('run')       ?? false);
     }
 
-    public function run(bool $debug = false) : bool
+    public function run(bool $debug = false): bool
     {
-        // Stack overflow protection
-        if (self::$isRunningBuild === true) {
+        if (self::$isRunningBuild) {
             return false;
         }
 
@@ -55,21 +48,21 @@ class Native
 
         $this->debug = $debug;
 
-        $this->buildPath = (ROOT_PATH . '.cache/build-native/');
-        $this->assetsPath = (FLAMES_PATH . 'Cli/Command/Build/App/Native/Desktop/');
+        $this->buildPath  = ROOT_PATH . '.cache/build-native/';
+        $this->assetsPath = FLAMES_PATH . 'Cli/Command/Build/App/Native/Desktop/';
 
         $this->checkBuildPath();
         $this->cleanBuild();
 
         if ($this->verifyDependencies() === false) { return false; }
 
-        if ($this->mountNodeApp() === false) { return false; }
+        if ($this->mountNodeApp()      === false) { return false; }
         if ($this->installNodeModules() === false) { return false; }
-        if ($this->installElectron() === false) { return false; }
-        if ($this->prepareApp() === false) { return false; }
-        if ($this->buildIcon() === false) { return false; }
-        if ($this->buildApp() === false) { return false; }
-        if ($this->packBuild() === false) { return false; }
+        if ($this->installElectron()   === false) { return false; }
+        if ($this->prepareApp()        === false) { return false; }
+        if ($this->buildIcon()         === false) { return false; }
+        if ($this->buildApp()          === false) { return false; }
+        if ($this->packBuild()         === false) { return false; }
 
         self::$isRunningBuild = false;
         return true;
@@ -77,7 +70,7 @@ class Native
 
     protected function checkBuildPath(): void
     {
-        if (is_dir($this->buildPath) === false) {
+        if (!is_dir($this->buildPath)) {
             $mask = umask(0);
             mkdir($this->buildPath, 0777, true);
             umask($mask);
@@ -86,9 +79,9 @@ class Native
 
     protected function verifyDependencies(): bool
     {
-        $process = new Shell('npm -v');
+        $process    = new Shell('npm -v');
         $npmVersion = $process->getOutput();
-        $output = (int)$npmVersion;
+        $output     = (int)$npmVersion;
 
         if ($process->getCode() !== Shell\Code::CODE_SUCCESS || $output === 0) {
             $this->log("NPM not found.\n");
@@ -96,9 +89,9 @@ class Native
             return false;
         }
 
-        $process = new Shell('npx -v');
+        $process    = new Shell('npx -v');
         $npxVersion = $process->getOutput();
-        $output = (int)$npxVersion;
+        $output     = (int)$npxVersion;
 
         if ($process->getCode() !== Shell\Code::CODE_SUCCESS || $output === 0) {
             $this->log("NPX not found.\n");
@@ -106,11 +99,11 @@ class Native
             return false;
         }
 
-        if (\Flames\Server\Os::isWindows() === false) {
-            $process = new Shell('rpmbuild --version');
+        if (!\Flames\Server\Os::isWindows()) {
+            $process    = new Shell('rpmbuild --version');
             $rpmVersion = Strings::split($process->getOutput(), ' ');
             $rpmVersion = $rpmVersion->last;
-            $output = (int)$rpmVersion;
+            $output     = (int)$rpmVersion;
 
             if ($process->getCode() !== Shell\Code::CODE_SUCCESS || $output === 0) {
                 $this->log("RPM not found.\n");
@@ -120,13 +113,13 @@ class Native
             }
         }
 
-        $this->log("Dependencies checks: NPM version " . $npmVersion . " and NPX version " . $npxVersion . ".\n");
+        $this->log("Dependencies checks: NPM version {$npmVersion} and NPX version {$npxVersion}.\n");
         return true;
     }
 
     protected function reportNodeMissing(): void
     {
-        if (\Flames\Server\Os::isWindows() === true) {
+        if (\Flames\Server\Os::isWindows()) {
             $this->log("Please install Node.JS using command: 'choco install nodejs -y'.\n");
             $this->log("Alternatively, you can download the installer from 'https://nodejs.org/en/download'.\n");
         } else {
@@ -154,8 +147,7 @@ class Native
         if (!empty($appDescription)) { $packageData->description = $appDescription; }
         else { $this->log("Please set APP_DESCRIPTION environment variable in .env. Using default value.\n"); sleep(1); }
 
-        $packageDataMount = json_encode($packageData, JSON_PRETTY_PRINT);
-        file_put_contents($this->buildPath . 'package.json', $packageDataMount);
+        file_put_contents($this->buildPath . 'package.json', json_encode($packageData, JSON_PRETTY_PRINT));
 
         return true;
     }
@@ -206,22 +198,19 @@ class Native
 
     protected function prepareApp(): bool
     {
-        file_put_contents($this->buildPath . 'main.js', file_get_contents($this->assetsPath . 'main.js'));
+        file_put_contents($this->buildPath . 'main.js',        file_get_contents($this->assetsPath . 'main.js'));
         file_put_contents($this->buildPath . 'forge.config.js', file_get_contents($this->assetsPath . 'forge.config.js'));
 
-        $assetsAppPath = ($this->buildPath . 'Kernel/');
-        if (is_dir($assetsAppPath) === false) {
+        $assetsAppPath = $this->buildPath . 'Kernel/';
+        if (!is_dir($assetsAppPath)) {
             $mask = umask(0);
             mkdir($assetsAppPath, 0777, true);
             umask($mask);
         }
 
-        file_put_contents($assetsAppPath . 'BrowserView.js', file_get_contents($this->assetsPath . 'Kernel/BrowserView.js'));
-        file_put_contents($assetsAppPath . 'BrowserWindow.js', file_get_contents($this->assetsPath . 'Kernel/BrowserWindow.js'));
-        file_put_contents($assetsAppPath . 'Register.js', file_get_contents($this->assetsPath . 'Kernel/Register.js'));
-        file_put_contents($assetsAppPath . 'Flames.js', file_get_contents($this->assetsPath . 'Kernel/Flames.js'));
-        file_put_contents($assetsAppPath . 'Initialize.js', file_get_contents($this->assetsPath . 'Kernel/Initialize.js'));
-        file_put_contents($assetsAppPath . 'Setup.js', file_get_contents($this->assetsPath . 'Kernel/Setup.js'));
+        foreach (['BrowserView.js', 'BrowserWindow.js', 'Register.js', 'Flames.js', 'Initialize.js', 'Setup.js'] as $jsFile) {
+            file_put_contents($assetsAppPath . $jsFile, file_get_contents($this->assetsPath . 'Kernel/' . $jsFile));
+        }
 
         $appDomain = Environment::get('APP_DOMAIN');
         if (empty($appDomain)) {
@@ -238,22 +227,21 @@ class Native
         }
 
         $appNativeKey = self::getAppNativeKey();
-        $domains = ((string)Environment::get('APP_DOMAIN') . ',');
+        $domains      = (string)Environment::get('APP_DOMAIN') . ',';
         $appNativeDomains = Environment::get('APP_NATIVE_DOMAINS');
-        if (!empty($appNativeDomains)) { $domains .= ($appNativeDomains . ',');  }
+        if (!empty($appNativeDomains)) {
+            $domains .= $appNativeDomains . ',';
+        }
 
-        if (Strings::endsWith($domains, ',') === true) { $domains = substr($domains, 0, -1); }
+        if (str_ends_with($domains, ',')) {
+            $domains = substr($domains, 0, -1);
+        }
 
-        $appEnv = file_get_contents($this->assetsPath . 'env.template.js');
-        $appEnv = str_replace([
-            '{{ url }}',
-            '{{ appNativeKey }}',
-            '{{ domains }}'
-        ], [
-            $appProtocol . '://' . $appDomain,
-            $appNativeKey,
-            $domains
-        ], $appEnv);
+        $appEnv = str_replace(
+            ['{{ url }}', '{{ appNativeKey }}', '{{ domains }}'],
+            [$appProtocol . '://' . $appDomain, $appNativeKey, $domains],
+            (string)file_get_contents($this->assetsPath . 'env.template.js')
+        );
         file_put_contents($this->buildPath . 'env.js', $appEnv);
 
         return true;
@@ -261,20 +249,20 @@ class Native
 
     protected function buildIcon(): bool
     {
-        $buildResourcePath = ($this->buildPath . 'Resource/');
-        if (is_dir($buildResourcePath) === false) {
+        $buildResourcePath = $this->buildPath . 'Resource/';
+        if (!is_dir($buildResourcePath)) {
             $mask = umask(0);
             mkdir($buildResourcePath, 0777, true);
             umask($mask);
         }
 
-        $iconPath = (APP_PATH . 'Client/Resource/icon.png');
-        if (file_exists($iconPath) === false) {
-            $iconPath = (FLAMES_PATH . 'Kernel/Client/Engine/Flames.png');
+        $iconPath = APP_PATH . 'Client/Resource/icon.png';
+        if (!file_exists($iconPath)) {
+            $iconPath = FLAMES_PATH . 'Kernel/Client/Engine/Flames.png';
             $this->log("App Icon not found, please put at 'App/Client/Resource/icon.png'. Using default value.\n");
             sleep(1);
         }
-        copy($iconPath, ($buildResourcePath . 'icon.png'));
+        copy($iconPath, $buildResourcePath . 'icon.png');
 
         $winIco = new WinIco($buildResourcePath . 'icon.png');
         $winIco->save($buildResourcePath . 'icon.ico');
@@ -302,32 +290,24 @@ class Native
 
     protected function packBuild(): bool
     {
-        $buildZipPath = (APP_PATH . 'Client/Build/');
-        if (is_dir($buildZipPath) === false) {
+        $buildZipPath = APP_PATH . 'Client/Build/';
+        if (!is_dir($buildZipPath)) {
             $mask = umask(0);
             mkdir($buildZipPath, 0777, true);
             umask($mask);
         }
 
-        $outputPath = ($this->buildPath . 'out/');
+        $outputPath = $this->buildPath . 'out/';
 
-        if (\Flames\Server\Os::isWindows() === true) {
-            $squirrelPath = ($outputPath . 'make/squirrel.windows/x64/');
+        if (\Flames\Server\Os::isWindows()) {
+            $squirrelPath = $outputPath . 'make/squirrel.windows/x64/';
 
             if (is_dir($squirrelPath)) {
-                $files = scandir($squirrelPath);
-                $outputFile = null;
-                foreach ($files as $file) {
-                    if (Strings::endsWith($file, '.nupkg') === true) {
-                        $outputFile = $file;
-                        break;
-                    }
-                }
+                $outputFile = $this->findFileByExtension($squirrelPath, '.nupkg');
 
                 if ($outputFile !== null) {
-                    $outputFilePath = ($squirrelPath . $outputFile);
-                    $fileName = ('build_' . $this->getBuildFilePrefix() . '.nupkg');
-                    copy($outputFilePath, (APP_PATH . 'Client/Build/' . $fileName));
+                    $fileName = 'build_' . $this->getBuildFilePrefix() . '.nupkg';
+                    copy($squirrelPath . $outputFile, APP_PATH . 'Client/Build/' . $fileName);
                 } else {
                     $this->log("No nupkg build file found in output directory.\n");
                 }
@@ -335,12 +315,11 @@ class Native
 
             $this->packZip($outputPath);
 
-            if ($this->installer === true) {
+            if ($this->installer) {
                 if ($this->buildInstaller($outputPath) === false) {
                     return false;
                 }
-            }
-            elseif ($this->run === true) {
+            } elseif ($this->run) {
                 $this->runBuild($outputPath);
             }
             return true;
@@ -350,7 +329,7 @@ class Native
         $this->packBuildBundleUnix($outputPath, 'rpm');
         if ($this->packZip($outputPath) === false) { return false; }
 
-        if ($this->run === true) {
+        if ($this->run) {
             $this->runBuild($outputPath);
         }
 
@@ -359,25 +338,19 @@ class Native
 
     protected function packBuildBundleUnix(string $outputPath, string $type): void
     {
-        $outputPath = ($outputPath . 'make/' . $type . '/x64/');
+        $typeDir = $outputPath . 'make/' . $type . '/x64/';
 
-        if (is_dir($outputPath)) {
-            $files = scandir($outputPath);
-            $outputFile = null;
-            foreach ($files as $file) {
-                if (Strings::endsWith($file, '.' . $type) === true) {
-                    $outputFile = $file;
-                    break;
-                }
-            }
+        if (!is_dir($typeDir)) {
+            return;
+        }
 
-            if ($outputFile !== null) {
-                $outputFilePath = ($outputPath . $outputFile);
-                $fileName = ('build_' . $this->getBuildFilePrefix() . '.' . $type);
-                copy($outputFilePath, (APP_PATH . 'Client/Build/' . $fileName));
-            } else {
-                $this->log('No ' . $type . " build file found in output directory.\n");
-            }
+        $outputFile = $this->findFileByExtension($typeDir, '.' . $type);
+
+        if ($outputFile !== null) {
+            $fileName = 'build_' . $this->getBuildFilePrefix() . '.' . $type;
+            copy($typeDir . $outputFile, APP_PATH . 'Client/Build/' . $fileName);
+        } else {
+            $this->log('No ' . $type . " build file found in output directory.\n");
         }
     }
 
@@ -400,11 +373,10 @@ class Native
 
     public function getPackPath(string $outputPath): ?string
     {
-        $outDirs = scandir($outputPath);
         $outputDir = null;
-        foreach ($outDirs as $outDir) {
+        foreach (scandir($outputPath) as $outDir) {
             if ($outDir !== '.' && $outDir !== '..' && $outDir !== 'make') {
-                $outputDir = ($outputPath . $outDir . '/');
+                $outputDir = $outputPath . $outDir . '/';
             }
         }
 
@@ -416,12 +388,12 @@ class Native
         $this->log("Building windows installer... It could take up to several minutes...\n");
 
         $outputDir = $this->getPackPath($outputPath);
-        $exeFile = $this->getWindowExecutable($outputDir);
+        $exeFile   = $this->getWindowExecutable($outputDir);
 
         $issrcPath = $this->verifyIssrc();
 
-        $installerPath = ($this->buildPath . 'Installer/');
-        if (is_dir($installerPath) === false) {
+        $installerPath = $this->buildPath . 'Installer/';
+        if (!is_dir($installerPath)) {
             $mask = umask(0);
             mkdir($installerPath, 0777, true);
             umask($mask);
@@ -430,44 +402,29 @@ class Native
         $this->buildIconInstaller();
         $appInstallerUuid = $this->getInstallerUuid();
 
-        $appTitle = Environment::get('APP_TITLE'); if (empty($appTitle)) { $appTitle = 'Flames'; }
-        $appVersion = Environment::get('APP_VERSION'); if (empty($appTitle)) { $appVersion = '1.0.0'; }
-        $appAuthor = Environment::get('APP_AUTHOR'); if (empty($appTitle)) { $appAuthor = 'Flames'; }
-        $appDomain = Environment::get('APP_DOMAIN'); if (empty($appDomain)) { $appDomain = 'localhost'; }
-        $appProtocol = Environment::get('APP_PROTOCOL'); if (empty($appDomain)) { $appDomain = 'https'; }
+        $appTitle    = Environment::get('APP_TITLE');    if (empty($appTitle))    { $appTitle    = 'Flames'; }
+        $appVersion  = Environment::get('APP_VERSION');  if (empty($appTitle))    { $appVersion  = '1.0.0'; }
+        $appAuthor   = Environment::get('APP_AUTHOR');   if (empty($appTitle))    { $appAuthor   = 'Flames'; }
+        $appDomain   = Environment::get('APP_DOMAIN');   if (empty($appDomain))   { $appDomain   = 'localhost'; }
+        $appProtocol = Environment::get('APP_PROTOCOL'); if (empty($appDomain))   { $appDomain   = 'https'; }
 
-        $issData = file_get_contents($this->assetsPath . 'WinInstaller/setup.template.iss');
-        $issData = str_replace([
-            '{{ APP_TITLE }}',
-            '{{ APP_VERSION }}',
-            '{{ APP_AUTHOR }}',
-            '{{ APP_URL }}',
-            '{{ APP_UUID }}',
-            '{{ FILE_EXECUTABLE }}',
-            '{{ PATH_INTALLER }}',
-            '{{ PATH_BUILD }}',
-        ], [
-            $appTitle,
-            $appVersion,
-            $appAuthor,
-            ($appProtocol . '://' . $appDomain),
-            $appInstallerUuid,
-            $exeFile,
-            $installerPath,
-            $outputDir,
-        ], $issData);
+        $issData = str_replace(
+            ['{{ APP_TITLE }}', '{{ APP_VERSION }}', '{{ APP_AUTHOR }}', '{{ APP_URL }}',
+             '{{ APP_UUID }}', '{{ FILE_EXECUTABLE }}', '{{ PATH_INTALLER }}', '{{ PATH_BUILD }}'],
+            [$appTitle, $appVersion, $appAuthor, $appProtocol . '://' . $appDomain,
+             $appInstallerUuid, $exeFile, $installerPath, $outputDir],
+            (string)file_get_contents($this->assetsPath . 'WinInstaller/setup.template.iss')
+        );
         file_put_contents($installerPath . 'setup.iss', $issData);
 
-        $buildCommand = ($issrcPath . 'iscc.exe "' . $installerPath . 'setup.iss"');
-
-        $process = new Shell($buildCommand);
+        $process = new Shell($issrcPath . 'iscc.exe "' . $installerPath . 'setup.iss"');
         if ($process->getCode() !== Shell\Code::CODE_SUCCESS) {
             $this->log("Error building installer.\n");
             return false;
         }
 
-        $fileName = ('build_' . $this->getBuildFilePrefix() . '.exe');
-        copy($installerPath . 'setup.exe', (APP_PATH . 'Client/Build/' . $fileName));
+        $fileName = 'build_' . $this->getBuildFilePrefix() . '.exe';
+        copy($installerPath . 'setup.exe', APP_PATH . 'Client/Build/' . $fileName);
 
         return true;
     }
@@ -476,12 +433,12 @@ class Native
     {
         $installerUuid = Environment::get('APP_INSTALLER_UUID');
         if (empty($installerUuid)) {
-            $data = random_bytes(16);
-            $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // set version to 0100
-            $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // set bits 6-7 to 10
-            $uuid = Strings::toUpper(vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4)));
+            $data    = random_bytes(16);
+            $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+            $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+            $uuid    = Strings::toUpper(vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4)));
 
-            $env = Environment::default();
+            $env                    = Environment::default();
             $env->APP_INSTALLER_UUID = $uuid;
             $env->save();
 
@@ -493,53 +450,53 @@ class Native
 
     protected function buildIconInstaller(): void
     {
-        $iconInstallerPath = ($this->buildPath . 'Installer/icon.png');
+        $iconInstallerPath = $this->buildPath . 'Installer/icon.png';
+        copy($this->buildPath . 'Resource/icon.png', $iconInstallerPath);
 
-        $iconPath = ($this->buildPath . 'Resource/icon.png');
-        copy($iconPath, ($iconInstallerPath));
-        $iconPath = $iconInstallerPath;
-
-        list($iconWidth, $iconHeight) = getimagesize($iconPath);
-        $iconWidth = (int)$iconWidth;
+        [$iconWidth, $iconHeight] = getimagesize($iconInstallerPath);
+        $iconWidth  = (int)$iconWidth;
         $iconHeight = (int)$iconHeight;
-        $origWidth = $iconWidth;
+        $origWidth  = $iconWidth;
         $origHeight = $iconHeight;
 
         if ($iconWidth > self::ICON_INSTALLER_MAX_SIZE) {
-            $iconHeight = ((self::ICON_INSTALLER_MAX_SIZE / $iconWidth) * $iconHeight);
-            $iconWidth = self::ICON_INSTALLER_MAX_SIZE;
+            $iconHeight = (int)((self::ICON_INSTALLER_MAX_SIZE / $iconWidth) * $iconHeight);
+            $iconWidth  = self::ICON_INSTALLER_MAX_SIZE;
         }
         if ($iconHeight > self::ICON_INSTALLER_MAX_SIZE) {
-            $iconWidth = ((self::ICON_INSTALLER_MAX_SIZE / $iconHeight) * $iconWidth);
+            $iconWidth  = (int)((self::ICON_INSTALLER_MAX_SIZE / $iconHeight) * $iconWidth);
             $iconHeight = self::ICON_INSTALLER_MAX_SIZE;
         }
 
         if ($iconWidth !== $origWidth || $iconHeight !== $origHeight) {
             $iconImageResized = imagecreate($iconWidth, $iconHeight);
-            $iconImage = imagecreatefrompng($iconPath);
+            $iconImage        = imagecreatefrompng($iconInstallerPath);
             imagecopyresampled($iconImageResized, $iconImage, 0, 0, 0, 0,
                 $iconWidth, $iconHeight, $origWidth, $origHeight);
-            imagepng($iconImageResized, $iconPath);
+            imagepng($iconImageResized, $iconInstallerPath);
         }
 
-        $winIco = new WinIco($iconPath);
+        $winIco = new WinIco($iconInstallerPath);
         $winIco->save($this->buildPath . 'Installer/icon.ico');
     }
 
     protected function verifyIssrc(): string
     {
-        $issrcPath = (ROOT_PATH . '.cache/tools/issrc/');
-        if (is_dir($issrcPath) === false) {
+        $issrcPath = ROOT_PATH . '.cache/tools/issrc/';
+        if (!is_dir($issrcPath)) {
             $mask = umask(0);
             mkdir($issrcPath, 0777, true);
             umask($mask);
         }
 
-        if (file_exists($issrcPath . 'ok') === false) {
-            $installPath = ($issrcPath . 'install.zip');
-            file_put_contents($installPath, file_get_contents('https://cdn.jsdelivr.net/gh/flamesphp/cdn@' . Kernel::CDN_VERSION . '/tools/issrc.zip.dat'));
+        if (!file_exists($issrcPath . 'ok')) {
+            $installPath = $issrcPath . 'install.zip';
+            file_put_contents(
+                $installPath,
+                file_get_contents('https://cdn.jsdelivr.net/gh/flamesphp/cdn@' . Kernel::CDN_VERSION . '/tools/issrc.zip.dat')
+            );
 
-            $zip = new ZipArchive;
+            $zip = new ZipArchive();
             $zip->open($installPath);
             $zip->extractTo($issrcPath);
             $zip->close();
@@ -553,11 +510,10 @@ class Native
 
     protected function runBuild(string $outputPath): void
     {
-        $outDirs = scandir($outputPath);
         $outputDir = null;
-        foreach ($outDirs as $outDir) {
+        foreach (scandir($outputPath) as $outDir) {
             if ($outDir !== '.' && $outDir !== '..' && $outDir !== 'make') {
-                $outputDir = ($outputPath . $outDir . '/');
+                $outputDir = $outputPath . $outDir . '/';
             }
         }
 
@@ -572,81 +528,57 @@ class Native
             return;
         }
 
-        $exePath = ($outputDir . $exeFile);
-        proc_open("start /b " . $exePath, [
-            0 => ["pipe", "r"],
-            1 => ["pipe", "w"],
+        proc_open('start /b ' . escapeshellarg($outputDir . $exeFile), [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
         ], $pipes);
     }
 
     protected function getWindowExecutable(string $outputDir): ?string
     {
-        $files = scandir($outputDir);
-        $exeFile = null;
-        foreach ($files as $file) {
-            if (Strings::endsWith($file, '.exe') === true) {
-                $exeFile = $file;
-                break;
-            }
-        }
-
-        return $exeFile;
+        return $this->findFileByExtension($outputDir, '.exe');
     }
 
     protected function getBuildFilePrefix(): string
     {
-        $pathName = '';
-        $appName = Environment::get('APP_NAME');
-        if (!empty($appName)) {
-            $pathName = (strtolower($appName) . '_');
-        }
-
-        $pathName .= (new \DateTime())->format('Y_m_d_His');
-        return $pathName;
+        $appName  = (string)(Environment::get('APP_NAME') ?? '');
+        $pathName = $appName !== '' ? strtolower($appName) . '_' : '';
+        return $pathName . (new \DateTimeImmutable())->format('Y_m_d_His');
     }
 
     protected function buildZip(string $buildPath): void
     {
         $this->log("Building zip file... It could take up to several minutes...\n");
 
-        $buildZipPath = (APP_PATH . 'Client/Build/');
-        if (is_dir($buildZipPath) === false) {
+        $buildZipPath = APP_PATH . 'Client/Build/';
+        if (!is_dir($buildZipPath)) {
             $mask = umask(0);
             mkdir($buildZipPath, 0777, true);
             umask($mask);
         }
 
-        $zipName = 'build_';
-        $appName = Environment::get('APP_NAME');
-        if (!empty($appName)) {
-            $zipName .= (strtolower($appName) . '_');
-        }
-
-        $zipName .= (new \DateTime())->format('Y_m_d_His');
-        $zipPath = ($buildZipPath . $zipName . '.zip');
-
+        $appName = (string)(Environment::get('APP_NAME') ?? '');
+        $zipName = 'build_' . ($appName !== '' ? strtolower($appName) . '_' : '')
+                 . (new \DateTimeImmutable())->format('Y_m_d_His');
+        $zipPath = $buildZipPath . $zipName . '.zip';
 
         $zip = new ZipArchive();
         $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
         $buildPathLen = strlen($buildPath);
-        $buildFiles = $this->getDirContents($buildPath);
-        foreach ($buildFiles as $buildFile) {
-            if (is_dir($buildFile) === true) {
-                continue;
+        foreach ($this->getDirContents($buildPath) as $buildFile) {
+            if (!is_dir($buildFile)) {
+                $zip->addFile($buildFile, substr($buildFile, $buildPathLen));
             }
-
-            $zipFilePath = substr($buildFile, $buildPathLen);
-            $zip->addFile($buildFile, $zipFilePath);
         }
         $zip->close();
     }
 
-    protected function cleanBuild() : void
+    protected function cleanBuild(): void
     {
         $currentPath = getcwd();
 
-        if (\Flames\Server\Os::isWindows() === true) {
+        if (\Flames\Server\Os::isWindows()) {
             @exec('del /s /q "' . $this->buildPath . '"');
             sleep(1);
             $this->checkBuildPath();
@@ -656,18 +588,18 @@ class Native
             chdir($currentPath);
         }
 
-        if (is_dir($this->buildPath) === false) {
+        if (!is_dir($this->buildPath)) {
             return;
         }
 
         $buildFiles = $this->getDirContents($this->buildPath);
         foreach ($buildFiles as $buildFile) {
-            if (is_file($buildFile) === true) {
+            if (is_file($buildFile)) {
                 @unlink($buildFile);
             }
         }
         foreach ($buildFiles as $buildFile) {
-            if (is_dir($buildFile) === true) {
+            if (is_dir($buildFile)) {
                 @rmdir($buildFile);
             }
         }
@@ -675,27 +607,33 @@ class Native
         $this->checkBuildPath();
     }
 
-    protected function getDirContents($dir, &$results = [])
+    protected function getDirContents(string $dir): array
     {
         if (!is_dir($dir)) {
             return [];
         }
-        $files = scandir($dir);
 
-        foreach ($files as $key => $value) {
-            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
-            if (!is_dir($path)) {
-                $results[] = $path;
-            } else if ($value !== '.' && $value !== '..') {
-                $this->getDirContents($path, $results);
-                $results[] = $path;
+        $files = [];
+        $dirs  = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $path = $item->getPathname();
+            if ($item->isDir()) {
+                $dirs[] = $path;
+            } else {
+                $files[] = $path;
             }
         }
 
-        return $results;
+        return array_merge($files, $dirs);
     }
-    
-    protected function log(string $message)
+
+    protected function log(string $message): void
     {
         echo $message;
         @flush();
@@ -712,11 +650,24 @@ class Native
                 Environment::get('CRYPTO_KEY')
             );
 
-            $env = Environment::default();
-            $env->APP_NATIVE_KEY = $appNativeKey;
+            $env                  = Environment::default();
+            $env->APP_NATIVE_KEY  = $appNativeKey;
             $env->save();
         }
 
         return $appNativeKey;
+    }
+
+    /**
+     * Scans a directory and returns the first filename ending with $ext, or null.
+     */
+    private function findFileByExtension(string $dir, string $ext): ?string
+    {
+        foreach (scandir($dir) ?: [] as $file) {
+            if (str_ends_with($file, $ext)) {
+                return $file;
+            }
+        }
+        return null;
     }
 }

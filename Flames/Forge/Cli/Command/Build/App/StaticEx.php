@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Build\App;
 
 use Flames\Collection\Arr;
@@ -20,27 +22,24 @@ class StaticEx
 
     protected static bool $isRunningBuild = false;
 
-    protected $cloudflare = false;
+    protected bool $cloudflare = false;
 
-    public function __construct($data)
+    public function __construct(mixed $data)
     {
-        if ($data->option->contains('cloudflare') === true) {
-            $this->cloudflare = true;
-        }
+        $this->cloudflare = (bool)($data->option->contains('cloudflare') ?? false);
     }
 
-    public function run(bool $debug = false) : bool
+    public function run(bool $debug = false): bool
     {
-        // Stack overflow protection
-        if (self::$isRunningBuild === true) {
+        if (self::$isRunningBuild) {
             return false;
         }
         self::$isRunningBuild = true;
 
-        $this->debug = $debug;
+        $this->debug     = $debug;
+        $this->buildPath = ROOT_PATH . '.cache/build/';
 
-        $this->buildPath = (ROOT_PATH . '.cache/build/');
-        if (is_dir($this->buildPath) === false) {
+        if (!is_dir($this->buildPath)) {
             $mask = umask(0);
             mkdir($this->buildPath, 0777, true);
             umask($mask);
@@ -75,104 +74,89 @@ class StaticEx
         return true;
     }
 
-    protected function buildZip()
+    protected function buildZip(): void
     {
-        $buildZipPath = (APP_PATH . 'Client/Build/');
-        if (is_dir($buildZipPath) === false) {
+        $buildZipPath = APP_PATH . 'Client/Build/';
+        if (!is_dir($buildZipPath)) {
             $mask = umask(0);
             mkdir($buildZipPath, 0777, true);
             umask($mask);
         }
 
-        $zipName = 'build_';
-        $appName = Environment::get('APP_NAME');
-        if (!empty($appName)) {
-            $zipName = (strtolower($appName) . '_');
-        }
-
-        $zipName .= (new \DateTime())->format('Y_m_d_His');
-        $zipPath = ($buildZipPath . $zipName . '.zip');
-
+        $appName = (string)(Environment::get('APP_NAME') ?? '');
+        $zipName = ($appName !== '' ? strtolower($appName) . '_' : 'build_')
+                 . (new \DateTimeImmutable())->format('Y_m_d_His');
+        $zipPath = $buildZipPath . $zipName . '.zip';
 
         $zip = new ZipArchive();
         $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
         $buildPathLen = strlen($this->buildPath);
-        $buildFiles = $this->getDirContents($this->buildPath);
-        foreach ($buildFiles as $buildFile) {
-            if (is_dir($buildFile) === true) {
-                continue;
+        foreach ($this->getDirContents($this->buildPath) as $buildFile) {
+            if (!is_dir($buildFile)) {
+                $zip->addFile($buildFile, substr($buildFile, $buildPathLen));
             }
-
-            $zipFilePath = substr($buildFile, $buildPathLen);
-            $zip->addFile($buildFile, $zipFilePath);
         }
         $zip->close();
     }
 
-    protected function buildFlames() : void
+    protected function buildFlames(): void
     {
-        $buildStream  = fopen($this->buildPath . 'flames.js', 'w+');
+        $buildStream = fopen($this->buildPath . 'flames.js', 'w+');
 
-        $clientPath = (APP_PATH . 'Client/Resource/client.js');
-        if (file_exists($clientPath) === true) {
+        $clientPath = APP_PATH . 'Client/Resource/client.js';
+        if (file_exists($clientPath)) {
             $fileStream = fopen($clientPath, 'r');
-            while(!feof($fileStream)) {
-                $buffer = fgets($fileStream, 128000); // 128 kb
-                fputs($buildStream, $buffer);
-            }
+            stream_copy_to_stream($fileStream, $buildStream);
             fclose($fileStream);
         }
 
         $fileStream = fopen(APP_PATH . 'Client/Resource/Build/Flames.js', 'r');
-        while(!feof($fileStream)) {
-            $buffer = fgets($fileStream, 128000); // 128 kb
-            fputs($buildStream, $buffer);
-        }
+        stream_copy_to_stream($fileStream, $buildStream);
         fclose($fileStream);
         fclose($buildStream);
 
-        $flamesDir = ($this->buildPath . '.flames');
-        if (is_dir($flamesDir) === false) {
+        $flamesDir = $this->buildPath . '.flames';
+        if (!is_dir($flamesDir)) {
             $mask = umask(0);
             mkdir($flamesDir, 0777, true);
             umask($mask);
         }
     }
 
-    protected function cleanBuild() : void
+    protected function cleanBuild(): void
     {
         $buildFiles = $this->getDirContents($this->buildPath);
         foreach ($buildFiles as $buildFile) {
-            if (is_file($buildFile) === true) {
+            if (is_file($buildFile)) {
                 unlink($buildFile);
             }
         }
         foreach ($buildFiles as $buildFile) {
-            if (is_dir($buildFile) === true) {
+            if (is_dir($buildFile)) {
                 rmdir($buildFile);
             }
         }
     }
 
-    protected function copyPublic() : void
+    protected function copyPublic(): void
     {
-        $publicPath = (APP_PATH . 'Client/Public/');
-        if (is_dir($publicPath) === false) {
+        $publicPath = APP_PATH . 'Client/Public/';
+        if (!is_dir($publicPath)) {
             return;
         }
 
         $publicPathLen = strlen($publicPath);
         $publicFiles = $this->getDirContents($publicPath);
         foreach ($publicFiles as $publicFile) {
-            if (is_dir($publicFile) === true) {
+            if (is_dir($publicFile)) {
                 continue;
             }
 
             $buildFile = ($this->buildPath . substr($publicFile, $publicPathLen));
             $buildDir  = dirname($buildFile);
 
-            if (is_dir($buildDir) === false) {
+            if (!is_dir($buildDir)) {
                 $mask = umask(0);
                 mkdir($buildDir, 0777, true);
                 umask($mask);
@@ -182,66 +166,65 @@ class StaticEx
         }
     }
 
-    protected function getDirContents($dir, &$results = array()) {
-        $files = scandir($dir);
+    protected function getDirContents(string $dir): array
+    {
+        if (!is_dir($dir)) {
+            return [];
+        }
 
-        foreach ($files as $key => $value) {
-            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
-            if (!is_dir($path)) {
-                $results[] = $path;
-            } else if ($value !== '.' && $value !== '..') {
-                $this->getDirContents($path, $results);
-                $results[] = $path;
+        $files = [];
+        $dirs  = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $path = $item->getPathname();
+            if ($item->isDir()) {
+                $dirs[] = $path;
+            } else {
+                $files[] = $path;
             }
         }
 
-        return $results;
+        return array_merge($files, $dirs);
     }
 
 
-    protected function saveResponse($metadata, $responseData) : void
+    protected function saveResponse(mixed $metadata, mixed $responseData): void
     {
         $url = $metadata->routeFormatted;
         if ($url === '404') {
             $url = '/404';
         }
 
-        if (str_ends_with($url, '/') === false) {
+        if (!str_ends_with($url, '/')) {
             $url .= '/';
         }
 
-        $urls = null;
+        $urls = $url !== '/'
+            ? [$url . 'index.html', substr($url, 0, -1) . '.html']
+            : ['/index.html'];
 
-        if ($url !== '/') {
-            $urls = [$url . 'index.html', substr($url, 0, -1) . '.html'];
-        } else {
-            $urls[] = '/index.html';
+        $isUnix = str_contains(ROOT_PATH, '/');
+        foreach ($urls as &$u) {
+            $u = $isUnix
+                ? str_replace('\\', '/', substr($u, 1))
+                : str_replace('/', '\\', substr($u, 1));
         }
+        unset($u);
 
-        $urlCount = count($urls);
-        if (str_contains(ROOT_PATH, '/') === true) {
-            for ($i = 0; $i < $urlCount; $i++) {
-                $urls[$i] = str_replace('\\', '/', substr($urls[$i], 1));
-            }
-
-        } else {
-            for ($i = 0; $i < $urlCount; $i++) {
-                $urls[$i] = str_replace('/', '\\', substr($urls[$i], 1));
-            }
-        }
+        $output = $responseData->output ?? '';
 
         foreach ($urls as $url) {
-            $path = $this->buildPath . $url;
+            $path    = $this->buildPath . $url;
             $dirPath = dirname($path);
-            if (is_dir($dirPath) === false) {
+            if (!is_dir($dirPath)) {
                 $mask = umask(0);
                 mkdir($dirPath, 0777, true);
                 umask($mask);
-            }
-
-            $output = $responseData->output;
-            if ($output === null) {
-                $output = '';
             }
             file_put_contents($path, $output);
         }
@@ -249,25 +232,25 @@ class StaticEx
         $this->saveHeader($metadata, $responseData, $urls);
     }
 
-    protected function saveHeader($metadata, $responseData, $urls) : void {}
+    protected function saveHeader(mixed $metadata, mixed $responseData, array $urls): void {}
 
-    public function getResponse($routeData) : bool|Arr
+    public function getResponse(mixed $routeData): bool|Arr
     {
         Header::set('X-Powered-By', 'Flames');
         if (Event::dispatch('Initialize', 'onInitialize') === false) {
             return false;
         }
 
-        $requestData = Route::mountRequestData($routeData);
+        $requestData      = Route::mountRequestData($routeData);
         $requestDataAllow = Event::dispatch('Route', 'onMatch', $requestData);
         if ($requestDataAllow === false) {
             return false;
         }
 
         $controller = new $routeData->controller();
-        $response = $controller->{$routeData->delegate}($requestData);
+        $response   = $controller->{$routeData->delegate}($requestData);
 
-        if (($response instanceof Response) === false) {
+        if (!($response instanceof Response)) {
             $response = new Response($response);
         }
 
@@ -295,7 +278,7 @@ class StaticEx
     }
 
 
-    protected function saveInputs() : void
+    protected function saveInputs(): void
     {
         $this->inputs = Arr([
             'get'       => $_GET,
@@ -331,7 +314,7 @@ class StaticEx
         Header::clear();
     }
 
-    protected function restoreInputs()
+    protected function restoreInputs(): void
     {
         $_GET     = $this->inputs->get;
         $_POST    = $this->inputs->post;

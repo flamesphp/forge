@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli;
 
 use Flames\Forge\Cli\Command\Cache;
@@ -19,7 +21,7 @@ use Flames\Forge\Cli\Command\Package;
 use Flames\Forge\Cli\Command\Route;
 use Flames\Forge\Cli\Command\Schedules\Install       as SchedulesInstall;
 use Flames\Forge\Cli\Command\Schedules\Remove        as SchedulesRemove;
-use Flames\Forge\Cli\Command\Schedules\Run          as SchedulesRun;
+use Flames\Forge\Cli\Command\Schedules\Run           as SchedulesRun;
 use Flames\Forge\Cli\Command\Schedules\ListSchedules as SchedulesList;
 use Flames\Forge\Cli\Command\Schedules\Show          as SchedulesShow;
 use Flames\Forge\Cli\Command\Schedules\Stop          as SchedulesStop;
@@ -34,7 +36,8 @@ use Flames\Router;
  */
 final class System
 {
-    protected static $commands = [
+    /** @var array<string, class-string> */
+    private const COMMANDS = [
         'install'            => Install::class,
         'inject'             => Inject::class,
         'key generate'       => KeyGenerate::class,
@@ -64,12 +67,18 @@ final class System
         'internal:coroutine' => Coroutine::class,
     ];
 
-    // Passthrough commands flush ob and skip the Flames header
-    protected static array $passthroughCommands = ['container', 'library', 'db', 'shell', 'cache'];
+    /** Passthrough commands flush ob and skip the Flames header (hash map for O(1) lookup). */
+    private const PASSTHROUGH = [
+        'container' => true,
+        'library'   => true,
+        'db'        => true,
+        'shell'     => true,
+        'cache'     => true,
+    ];
 
     // ── Help sections ─────────────────────────────────────────────────────────
 
-    protected static array $frameworkHelp = [
+    private const FRAMEWORK_HELP = [
         ['install',               'Install the project'],
         ['inject',                'Inject the global forge launcher'],
         ['key generate',          'Create or update the project unique key'],
@@ -77,7 +86,7 @@ final class System
         ['shell',                 'Open an interactive PHP REPL'],
     ];
 
-    protected static array $scheduleHelp = [
+    private const SCHEDULE_HELP = [
         ['schedule install',           'Register schedule runner in crontab'],
         ['schedule remove',            'Remove schedule runner from crontab'],
         ['schedule run',               'Run all due schedules'],
@@ -86,23 +95,23 @@ final class System
         ['schedule stop {name|pid}',   'Stop a running schedule by name or PID'],
     ];
 
-    protected static array $webserverHelp = [
+    private const WEBSERVER_HELP = [
         ['serve',               'Run a development server (0.0.0.0:80)'],
         ['serve {host}:{port}', 'Run at a specific host and port'],
         ['serve -host={host}',  'Run at a specific host'],
         ['serve -port={port}',  'Run at a specific port'],
     ];
 
-    protected static array $surfaceHelp = [
+    private const SURFACE_HELP = [
         ['surface build', 'Build client-side assets'],
     ];
 
-    protected static array $snapshotHelp = [
+    private const SNAPSHOT_HELP = [
         ['snapshot',              'Build the app as static HTML pages'],
         ['snapshot --cloudflare', 'Build for Cloudflare Pages'],
     ];
 
-    protected static array $bundleHelp = [
+    private const BUNDLE_HELP = [
         ['bundle',                       'Build app webview for Linux or Windows'],
         ['bundle --linux',               'Build for Linux'],
         ['bundle --windows',             'Build for Windows'],
@@ -110,7 +119,7 @@ final class System
         ['bundle --android',             'Build Android APK'],
     ];
 
-    protected static array $containerHelp = [
+    private const CONTAINER_HELP = [
         ['container',                      'Show running container status'],
         ['container run',                  'Start containers in the background'],
         ['container run --foreground',     'Start containers in the foreground'],
@@ -123,7 +132,7 @@ final class System
         ['container {service} php {args}', 'Run an explicit php command inside a container'],
     ];
 
-    protected static array $databaseHelp = [
+    private const DATABASE_HELP = [
         ['db',                           'Open a shell for the default database'],
         ['db {connection}',              'Open a shell for a named connection'],
         ['db sql {sql}',                 'Run SQL on the default database'],
@@ -138,13 +147,13 @@ final class System
         ['db wipe {connection}',         'Drop all tables in a specific connection'],
     ];
 
-    protected static array $cacheHelp = [
+    private const CACHE_HELP = [
         ['cache purge',        'Clear everything in app cache'],
         ['cache purge kernel', 'Clear kernel cache'],
         ['cache purge all',    'Clear everything'],
     ];
 
-    protected static array $packageHelp = [
+    private const PACKAGE_HELP = [
         ['library',                     'List available composer commands'],
         ['library require {package}',   'Add a new package to the project'],
         ['library remove {package}',    'Remove a package from the project'],
@@ -156,37 +165,29 @@ final class System
         ['library {command} {args}',    'Run any composer command'],
     ];
 
-    protected static array $routeHelp = [
+    private const ROUTE_HELP = [
         ['route server list',                  'List all server-side routes'],
         ['route client list',                  'List all client-side routes'],
         ['route server list {microservice}',   'List server-side routes for a microservice'],
         ['route client list {microservice}',   'List client-side routes for a microservice'],
     ];
 
-    protected static array $microserviceHelp = [
+    private const MICROSERVICE_HELP = [
         ['microservice list', 'List all configured microservices'],
     ];
 
-    protected Arr $data;
-    protected bool $debug;
+    private Arr $data;
 
-    public function __construct(Arr $data = null, bool $debug = true)
+    public function __construct(?Arr $data = null, private bool $debug = true)
     {
-        $this->debug = $debug;
-
-        if ($data === null) {
-            $this->data = Data::getData();
-            return;
-        }
-
-        $this->data = $data;
+        $this->data = $data ?? Data::getData();
     }
 
     public function run(): bool
     {
         $command = (string)($this->data->command ?? '');
-        $args    = array_values((array)$this->data->argument);
-        $options = array_values((array)$this->data->option);
+        $args    = (array)$this->data->argument;
+        $options = (array)$this->data->option;
 
         // ── Multi-word command resolution ─────────────────────────────────────
         // Try longest match first: command + 2 args, then + 1 arg, then alone.
@@ -197,12 +198,11 @@ final class System
             if ($n > 0 && !isset($args[$n - 1])) {
                 continue;
             }
-            $parts = [$command];
-            for ($i = 0; $i < $n; $i++) {
-                $parts[] = $args[$i];
-            }
-            $candidate = implode(' ', $parts);
-            if (isset(self::$commands[$candidate])) {
+            $candidate = $n > 0
+                ? $command . ' ' . implode(' ', array_slice($args, 0, $n))
+                : $command;
+
+            if (isset(self::COMMANDS[$candidate])) {
                 $resolved = $candidate;
                 $consumed = $n;
                 break;
@@ -210,7 +210,6 @@ final class System
         }
 
         if ($resolved === null) {
-            // Fallback: Docker service shortcut (forge {service} [args])
             if ($command !== '' && Container::serviceExists($command)) {
                 return $this->runContainerService($command);
             }
@@ -218,7 +217,6 @@ final class System
             return false;
         }
 
-        // Update data: expose the full resolved command and remaining arguments
         $this->data->command  = $resolved;
         $this->data->argument = Arr(array_slice($args, $consumed));
 
@@ -228,38 +226,18 @@ final class System
 
         // ── Special routing ───────────────────────────────────────────────────
 
-        // bundle --android → Mobile class
         if ($resolved === 'bundle' && in_array('android', $options, true)) {
-            $instance = new Mobile($this->data);
-            if ($this->debug) {
-                Output::logo();
-                Output::blank();
-                echo Output::CYAN . Output::BOLD . '  Running ' . Output::RESET
-                    . Output::GREEN . Output::BOLD . 'bundle --android' . Output::RESET . "\n\n";
-            }
-            $return = $instance->run($this->debug);
-            if ($this->debug) Output::blank();
-            return $return;
+            return $this->dispatchSpecial(new Mobile($this->data), 'bundle --android');
         }
 
-        // key generate --crypto → CryptoKeyGenerate class
         if ($resolved === 'key generate' && in_array('crypto', $options, true)) {
-            $instance = new CryptoKeyGenerate($this->data);
-            if ($this->debug) {
-                Output::logo();
-                Output::blank();
-                echo Output::CYAN . Output::BOLD . '  Running ' . Output::RESET
-                    . Output::GREEN . Output::BOLD . 'key generate --crypto' . Output::RESET . "\n\n";
-            }
-            $return = $instance->run($this->debug);
-            if ($this->debug) Output::blank();
-            return $return;
+            return $this->dispatchSpecial(new CryptoKeyGenerate($this->data), 'key generate --crypto');
         }
 
         // ── Standard dispatch ─────────────────────────────────────────────────
-        $isPassthrough = in_array($command, self::$passthroughCommands, true);
+        $isPassthrough = isset(self::PASSTHROUGH[$command]);
 
-        if ($this->debug === true && $isPassthrough === false) {
+        if ($this->debug && !$isPassthrough) {
             Output::logo();
             Output::blank();
             echo Output::CYAN . Output::BOLD
@@ -268,36 +246,50 @@ final class System
                 . "\n\n";
         }
 
-        $instance = new self::$commands[$resolved]($this->data);
+        $class    = self::COMMANDS[$resolved];
+        $instance = new $class($this->data);
         $return   = $instance->run($this->debug);
 
-        if ($this->debug === true && $isPassthrough === false) {
+        if ($this->debug && !$isPassthrough) {
             Output::blank();
         }
 
         return $return;
     }
 
-    /**
-     * Handles "forge {service} [args]" — shortcut for container exec.
-     */
-    protected function runContainerService(string $service): bool
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private function dispatchSpecial(object $instance, string $label): bool
+    {
+        if ($this->debug) {
+            Output::logo();
+            Output::blank();
+            echo Output::CYAN . Output::BOLD . '  Running ' . Output::RESET
+                . Output::GREEN . Output::BOLD . $label . Output::RESET . "\n\n";
+        }
+        $return = $instance->run($this->debug);
+        if ($this->debug) {
+            Output::blank();
+        }
+        return $return;
+    }
+
+    private function runContainerService(string $service): bool
     {
         while (ob_get_level() > 0) {
             ob_end_clean();
         }
 
-        $args     = array_values(array_slice($_SERVER['argv'], 2));
+        $args     = array_slice($_SERVER['argv'], 2);
         $instance = new Container($this->data);
-        return $instance->runExec($service, $args);
+        return $instance->runExec($service, array_values($args));
     }
 
-    protected function dispatchHelper(): void
+    private function dispatchHelper(): void
     {
         Output::logo();
         Output::blank();
 
-        // ── Execution mode banner ─────────────────────────────────────────────
         if (file_exists('/.dockerenv')) {
             $hostname = trim((string)shell_exec('hostname 2>/dev/null')) ?: 'container';
             echo '  ' . Output::GRAY . 'Running in ' . Output::RESET
@@ -319,7 +311,6 @@ final class System
         Output::command('--native',    'Force execution on the local machine (skip Docker routing)');
         Output::command('--container', 'Force execution inside the Docker container');
 
-        // Application CLI routes (first)
         $cliRoutes = $this->getApplicationCliRoutes();
         if (!empty($cliRoutes)) {
             Output::section('Application Commands');
@@ -328,88 +319,45 @@ final class System
             }
         }
 
-        Output::section('Framework Commands');
-        foreach (self::$frameworkHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
+        $sections = [
+            'Framework Commands'          => self::FRAMEWORK_HELP,
+            'Schedules'                   => self::SCHEDULE_HELP,
+            'Database'                    => self::DATABASE_HELP,
+            'Routes'                      => self::ROUTE_HELP,
+            'Microservices'               => self::MICROSERVICE_HELP,
+            'Surface (PHP Frontend WASM)' => self::SURFACE_HELP,
+            'Snapshot (Build Static App)' => self::SNAPSHOT_HELP,
+            'Bundle (Build Native App)'   => self::BUNDLE_HELP,
+            'Webserver (Development)'     => self::WEBSERVER_HELP,
+            'Container (Docker)'          => self::CONTAINER_HELP,
+            'Libraries (Composer)'        => self::PACKAGE_HELP,
+            'Cache'                       => self::CACHE_HELP,
+        ];
 
-        Output::section('Schedules');
-        foreach (self::$scheduleHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Database');
-        foreach (self::$databaseHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Routes');
-        foreach (self::$routeHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Microservices');
-        foreach (self::$microserviceHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Surface (PHP Frontend WASM)');
-        foreach (self::$surfaceHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Snapshot (Build Static App)');
-        foreach (self::$snapshotHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Bundle (Build Native App)');
-        foreach (self::$bundleHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Webserver (Development)');
-        foreach (self::$webserverHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-        
-        Output::section('Container (Docker)');
-        foreach (self::$containerHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Libraries (Composer)');
-        foreach (self::$packageHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
-        }
-
-        Output::section('Cache');
-        foreach (self::$cacheHelp as [$cmd, $desc]) {
-            Output::command($cmd, $desc);
+        foreach ($sections as $title => $items) {
+            Output::section($title);
+            foreach ($items as [$cmd, $desc]) {
+                Output::command($cmd, $desc);
+            }
         }
 
         Output::blank();
     }
 
-    /**
-     * Dispatches the Route event and returns a list of CLI route names.
-     */
-    protected function getApplicationCliRoutes(): array
+    private function getApplicationCliRoutes(): array
     {
         try {
             $router = Event::dispatch('Route', 'onRoute', new Router());
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return [];
         }
 
-        if ($router === null) {
+        if (!($router instanceof Router)) {
             return [];
         }
 
-        $routes = $router->getMetadata();
-        $names  = [];
-
-        foreach ($routes as $route) {
+        $names = [];
+        foreach ($router->getMetadata() as $route) {
             if ($route->methods === 'CLI') {
                 $names[] = $route->routeFormatted;
             }

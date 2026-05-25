@@ -1,60 +1,60 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli;
 
 use Flames\Collection\Arr;
 
 /**
- * Class Data
- *
- * The Data class is responsible for processing command line arguments and returning the data in a structured format.
+ * Parses command-line arguments into a structured Arr object.
  *
  * @internal
  */
 final class Data
 {
     /**
-     * Retrieves data from the given array of arguments or from $_SERVER['argv'] if no arguments are provided.
-     *
-     * @param array|null $args The array of arguments (default: null).
-     *
-     * @return Arr The data retrieved from the arguments.
+     * Retrieves data from the given array of arguments or from $_SERVER['argv'].
      */
-    public static function getData(array $args = null) : Arr
+    public static function getData(?array $args = null): Arr
     {
-        if ($args === null) {
-            $args = $_SERVER['argv'];
-        }
+        $args ??= $_SERVER['argv'];
 
         $data = Arr([
             'command'   => null,
             'argument'  => Arr(),
             'option'    => Arr(),
-            'parameter' => Arr()
+            'parameter' => Arr(),
         ]);
 
-        unset($args[0]);
-        if (isset($args[1]) === true) {
-            $data->command = $args[1];
-            unset($args[1]);
+        // argv[0] = script path; argv[1] = command
+        $command = $args[1] ?? null;
+        if ($command !== null) {
+            $data->command = $command;
         }
 
-        foreach ($args as $arg) {
-            if (str_starts_with($arg, '-') === false) {
+        $count = count($args);
+        for ($i = 2; $i < $count; $i++) {
+            $arg = $args[$i];
+
+            if (!str_starts_with($arg, '-')) {
                 $data->argument[] = $arg;
                 continue;
             }
-            if (str_starts_with($arg, '--') === true) {
+
+            if (str_starts_with($arg, '--')) {
                 $data->option[] = substr($arg, 2);
                 continue;
             }
 
-            $arg = substr($arg, 1);
-            $split = explode('=', $arg);
-            if (count($split) === 1) {
-                $split[1] = null;
+            // Single-dash parameter: -key or -key=value
+            $inner = substr($arg, 1);
+            $eqPos = strpos($inner, '=');
+            if ($eqPos === false) {
+                $data->parameter[$inner] = null;
+            } else {
+                $data->parameter[substr($inner, 0, $eqPos)] = substr($inner, $eqPos + 1);
             }
-            $data->parameter[$split[0]] = $split[1];
         }
 
         return $data;

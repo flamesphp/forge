@@ -1,0 +1,17 @@
+{
+  "name": "flamesphp/forge",
+  "description": "Flames: Forge",
+  "type": "library",
+  "license": "MIT",
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "require": {
+    "php": ">=8.5"
+  },
+  "extra": {
+    "exclude-from-classmap": [
+      "/resource/",
+      "/forge"
+    ]
+  }
+}

@@ -1,21 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge;
 
 /**
- * Represents a utility class for detecting CLI (Command-Line Interface) environment in PHP.
+ * Detects whether the current execution context is a CLI forge invocation.
  */
 final class Cli
 {
     /**
-     * Checks if the current script is being executed in a Command Line Interface (CLI) environment.
-     *
-     * @return bool Returns true if the script is being executed in CLI, otherwise false.
+     * Returns true when running as the forge CLI tool (not as a web request).
      */
-    public static function isCli() : bool
+    public static function isCli(): bool
     {
-        $script = $_SERVER['SCRIPT_FILENAME'] ?? '';
-        $base   = basename($script);
+        $base = basename($_SERVER['SCRIPT_FILENAME'] ?? '');
         return \Flames\Kernel::MODULE === 'SERVER' && ($base === 'forge' || $base === 'bin');
     }
 }

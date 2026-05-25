@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge;
 
 /**
@@ -13,38 +15,45 @@ namespace Flames\Forge;
  */
 final class Kernel
 {
+    /** Commands that must always run locally (interactive TTY or local-only). */
+    private const LOCAL_ONLY = [
+        'container' => true,
+        'package'   => true,
+        'db'        => true,
+        'shell'     => true,
+    ];
+
+    /** Docker Unix socket paths checked in order. */
+    private const DOCKER_SOCKETS = ['/var/run/docker.sock', '/run/docker.sock'];
+
     /**
      * Boot the forge entry point.
      *
-     * @param string $projectRoot  Absolute path to the project / framework root.
-     * @param string $kernelFile   Path to Kernel.php relative to $projectRoot.
+     * @param string $projectRoot Absolute path to the project / framework root.
+     * @param string $kernelFile  Path to Kernel.php relative to $projectRoot.
      */
-    public static function boot(string $projectRoot, string $kernelFile): void
+    public static function boot(string $projectRoot, string $kernelFile): never
     {
         // ── 1. Parse routing flags ────────────────────────────────────────────
-        $rawArgs        = array_slice($_SERVER['argv'], 1);
         $forceNative    = false;
         $forceContainer = false;
         $filteredArgs   = [];
 
-        foreach ($rawArgs as $arg) {
-            if ($arg === '--native')    { $forceNative    = true; continue; }
-            if ($arg === '--container') { $forceContainer = true; continue; }
-            $filteredArgs[] = $arg;
+        foreach (array_slice($_SERVER['argv'], 1) as $arg) {
+            match ($arg) {
+                '--native'    => ($forceNative    = true),
+                '--container' => ($forceContainer = true),
+                default       => ($filteredArgs[] = $arg),
+            };
         }
 
         $command = $filteredArgs[0] ?? null;
 
-        // These commands must always run locally (interactive TTY or local-only):
-        // 'container' manages Docker itself, 'db'/'shell' need a proper TTY
-        $localOnly = ['container', 'package', 'db', 'shell'];
-
         // ── 2. Docker routing ─────────────────────────────────────────────────
-        if ($forceNative === false && in_array($command, $localOnly, true) === false) {
-            if ($forceContainer === true || self::dockerIsRunning()) {
+        if (!$forceNative && !isset(self::LOCAL_ONLY[$command])) {
+            if ($forceContainer || self::dockerIsRunning()) {
                 $container = self::getAppContainer($projectRoot);
                 if ($container !== null) {
-                    // Use "docker exec" (no compose-file parsing = much faster)
                     $innerArgs = implode(' ', array_map('escapeshellarg', $filteredArgs));
                     passthru(
                         'docker exec -it ' . escapeshellarg($container) . ' php forge ' . $innerArgs,
@@ -56,13 +65,15 @@ final class Kernel
         }
 
         // ── 3. Restore filtered argv (flags consumed) ─────────────────────────
-        $_SERVER['argv'] = array_merge([$_SERVER['argv'][0]], $filteredArgs);
+        $_SERVER['argv'] = [$_SERVER['argv'][0], ...$filteredArgs];
         $_SERVER['argc'] = count($_SERVER['argv']);
 
         // ── 4. Load kernel ────────────────────────────────────────────────────
         chdir($projectRoot);
         require $projectRoot . DIRECTORY_SEPARATOR . $kernelFile;
         \Flames\Kernel::run();
+
+        exit(0);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -80,12 +91,11 @@ final class Kernel
      */
     private static function dockerIsRunning(): bool
     {
-        if (file_exists('/.dockerenv') === true) {
-            return false; // already inside a container — never self-route
+        if (file_exists('/.dockerenv')) {
+            return false;
         }
 
-        // Typical socket locations on Linux and macOS (Docker Desktop uses a symlink)
-        foreach (['/var/run/docker.sock', '/run/docker.sock'] as $sock) {
+        foreach (self::DOCKER_SOCKETS as $sock) {
             if (file_exists($sock)) {
                 return true;
             }
@@ -97,23 +107,15 @@ final class Kernel
     /**
      * Returns the name of the best-matching running container for this project,
      * or null if none is found.
-     *
-     * Uses "docker ps" with a project-slug name-filter so Docker does the
-     * heavy filtering and we only receive relevant lines.
      */
     private static function getAppContainer(string $projectRoot): ?string
     {
-        $composePath = $projectRoot . DIRECTORY_SEPARATOR . 'docker-compose.yml';
-        if (file_exists($composePath) === false) {
+        if (!file_exists($projectRoot . DIRECTORY_SEPARATOR . 'docker-compose.yml')) {
             return null;
         }
 
-        // Normalise the project directory name to match docker's naming convention
-        $projectSlug = strtolower(basename($projectRoot));
-        $projectSlug = preg_replace('/[^a-z0-9]/', '', $projectSlug);
+        $projectSlug = preg_replace('/[^a-z0-9]/', '', strtolower(basename($projectRoot)));
 
-        // Pass the slug directly to docker ps --filter so the daemon does the
-        // filtering; we receive far fewer lines than an unfiltered listing.
         exec(
             'docker ps --format "{{.Names}}"'
             . ' --filter "status=running"'
@@ -127,24 +129,26 @@ final class Kernel
             return null;
         }
 
-        $names = array_values(array_filter($names, fn($n) => trim($n) !== ''));
+        $names = array_values(array_filter($names, static fn(string $n): bool => trim($n) !== ''));
         if (empty($names)) {
             return null;
         }
 
+        // Pre-lowercase once — avoids repeated strtolower() inside loops
+        $namesLower = array_map('strtolower', $names);
+
         // 1st pass: project slug + known app-service keywords
-        foreach ($names as $name) {
-            $n = strtolower($name);
+        foreach ($namesLower as $i => $n) {
             if (str_contains($n, $projectSlug) &&
                 (str_contains($n, 'apache') || str_contains($n, '-app') || str_contains($n, 'php'))) {
-                return $name;
+                return $names[$i];
             }
         }
 
         // 2nd pass: any container belonging to this project
-        foreach ($names as $name) {
-            if (str_contains(strtolower($name), $projectSlug)) {
-                return $name;
+        foreach ($namesLower as $i => $n) {
+            if (str_contains($n, $projectSlug)) {
+                return $names[$i];
             }
         }
 

@@ -1,111 +1,90 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Build\Assets;
 
 use Flames\Collection\Arr;
 use Flames\Client\Event;
 
 /**
- * Class Data
- *
- * This class is responsible for mounting data for the given class.
+ * Mounts and caches reflection data for a given client-side class.
  */
 class Data
 {
-    private const __VERSION__ = 5;
+    private const VERSION  = 5;
+    private const CACHE_DIR = ROOT_PATH . '.cache/.flames/client-controller/';
 
-    /**
-     * Mounts data for the given class.
-     *
-     * @param string $class The class name.
-     * @return Arr The mounted data.
-     */
-    public static function mountData(string $class) : Arr
+    public static function mountData(string $class): Arr
     {
-        $path = (ROOT_PATH . str_replace('\\', '/', $class) . '.php');
-
-        $basePath  = (ROOT_PATH . '.cache/.flames/client-controller/');
-        $cachePath = ($basePath . sha1($class));
+        $path        = ROOT_PATH . str_replace('\\', '/', $class) . '.php';
+        $cachePath   = self::CACHE_DIR . sha1($class);
         $currentTime = filemtime($path);
 
-        if (file_exists($cachePath) === true && filemtime($cachePath) === $currentTime) {
-            $data = unserialize(file_get_contents($cachePath));
-            if ($data->version === self::__VERSION__) {
+        if (file_exists($cachePath) && filemtime($cachePath) === $currentTime) {
+            $data = unserialize((string)file_get_contents($cachePath));
+            if (isset($data->version) && $data->version === self::VERSION) {
                 return $data;
             }
         }
 
-        $data = self::__getReflection($class);
-        $success = @file_put_contents($cachePath, serialize($data));
-        if ($success === false) {
-            if (is_dir($basePath) === false) {
+        $data    = self::buildReflection($class);
+        $written = @file_put_contents($cachePath, serialize($data));
+
+        if ($written === false) {
+            if (!is_dir(self::CACHE_DIR)) {
                 $mask = umask(0);
-                mkdir($basePath, 0777, true);
+                mkdir(self::CACHE_DIR, 0777, true);
                 umask($mask);
-                @file_put_contents($cachePath, serialize($data));
             }
+            @file_put_contents($cachePath, serialize($data));
         }
+
         @touch($cachePath, $currentTime);
+
         return $data;
     }
 
-    /**
-     * Retrieves reflection data for the given class.
-     *
-     * @param string $class The class name.
-     * @return Arr The reflection data.
-     */
-    private static function __getReflection(string $class) : Arr
+    private static function buildReflection(string $class): Arr
     {
         $data = Arr([
-            'version'         => self::__VERSION__,
+            'version'         => self::VERSION,
             'class'           => $class,
             'methods'         => Arr(),
-            'staticConstruct' => (method_exists($class, '__constructStatic') === true)
+            'staticConstruct' => method_exists($class, '__constructStatic'),
         ]);
 
         $reflection = new \ReflectionClass($class);
 
-        $methods = $reflection->getMethods();
-        foreach ($methods as $method) {
+        foreach ($reflection->getMethods() as $method) {
             if ($method->name === 'success' || $method->name === 'error' || $method->name === '__constructStatic') {
                 continue;
             }
 
-            $attributes = $method->getAttributes();
-            foreach($attributes as $attribute) {
-                $attributeName = $attribute->getName();
+            foreach ($method->getAttributes() as $attribute) {
+                $name = $attribute->getName();
 
-                if ($attributeName === Event\Click::class) {
-                    $arguments = $attribute->getArguments();
-                    if (isset($arguments['uid'])) {
-                        $data->methods[$method->name] = Arr([
-                            'name' => $method->name,
-                            'uid' => $arguments['uid'],
-                            'type' => 'click'
-                        ]);
-                    }
+                $type = match ($name) {
+                    Event\Click::class  => 'click',
+                    Event\Change::class => 'change',
+                    Event\Input::class  => 'input',
+                    default             => null,
+                };
+
+                if ($type === null) {
+                    continue;
                 }
-                elseif ($attributeName === Event\Change::class) {
-                    $arguments = $attribute->getArguments();
-                    if (isset($arguments['uid'])) {
-                        $data->methods[$method->name] = Arr([
-                            'name' => $method->name,
-                            'uid' => $arguments['uid'],
-                            'type' => 'change'
-                        ]);
-                    }
+
+                $arguments = $attribute->getArguments();
+                if (!isset($arguments['uid'])) {
+                    continue;
                 }
-                elseif ($attributeName === Event\Input::class) {
-                    $arguments = $attribute->getArguments();
-                    if (isset($arguments['uid'])) {
-                        $data->methods[$method->name] = Arr([
-                            'name' => $method->name,
-                            'uid' => $arguments['uid'],
-                            'type' => 'input'
-                        ]);
-                    }
-                }
+
+                $data->methods[$method->name] = Arr([
+                    'name' => $method->name,
+                    'uid'  => $arguments['uid'],
+                    'type' => $type,
+                ]);
             }
         }
 

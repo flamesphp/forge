@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Schedules;
 
 use Flames\Forge\Cli\Output;
@@ -10,45 +12,43 @@ use Flames\Server\Process;
  */
 final class Stop
 {
-    protected string|null $target;
+    private readonly string|null $target;
 
-    /**
-     * Accepts either a schedule name or a PID.
-     * Usage: php bin schedules:stop {name|pid}
-     */
-    public function __construct($data)
+    public function __construct(mixed $data)
     {
         $this->target = $data->argument[0] ?? null;
     }
 
     public function run(bool $debug = false): bool
     {
-        if (empty($this->target) === true) {
-            Output::error('Usage: schedules:stop {name|pid}');
+        if (empty($this->target)) {
+            Output::error('Usage: schedule stop {name|pid}');
             return false;
         }
 
         $cacheDir = ROOT_PATH . '.cache/.flames/schedules/';
-        $locks    = glob($cacheDir . '*.*.lock');
+        $locks    = glob($cacheDir . '*.*.lock') ?: [];
 
-        if (empty($locks) === true) {
+        if (empty($locks)) {
             Output::warning('No running schedules found.');
             return true;
         }
 
-        // Collect all running processes, assigning sequential IDs
         $running = [];
         $seq     = 1;
+
         foreach ($locks as $lockFile) {
-            $data = json_decode(file_get_contents($lockFile), true);
+            $data = json_decode((string)file_get_contents($lockFile), true);
             if ($data === null) {
                 continue;
             }
+
             $pid = (int)($data['pid'] ?? 0);
-            if ($pid <= 0 || Process::isRunning($pid) === false) {
+            if ($pid <= 0 || !Process::isRunning($pid)) {
                 @unlink($lockFile);
                 continue;
             }
+
             $running[] = [
                 'id'       => $seq++,
                 'name'     => $data['name']    ?? '',
@@ -57,22 +57,21 @@ final class Stop
             ];
         }
 
-        if (empty($running) === true) {
+        if (empty($running)) {
             Output::warning('No running schedules found.');
             return true;
         }
 
         $killed = 0;
         foreach ($running as $entry) {
-            $match = (string)$entry['id']   === $this->target
-                  || (string)$entry['pid']  === $this->target
-                  || $entry['name']         === $this->target;
+            $match = (string)$entry['id']  === $this->target
+                  || (string)$entry['pid'] === $this->target
+                  || $entry['name']        === $this->target;
 
-            if ($match === false) {
+            if (!$match) {
                 continue;
             }
 
-            $process = Process::getCurrent();
             self::killPid($entry['pid']);
             @unlink($entry['lockFile']);
 
@@ -89,9 +88,9 @@ final class Stop
         return true;
     }
 
-    protected static function killPid(int $pid): void
+    private static function killPid(int $pid): void
     {
-        if (\Flames\Server\Os::isUnix() === true) {
+        if (\Flames\Server\Os::isUnix()) {
             exec('kill -9 ' . $pid);
             return;
         }

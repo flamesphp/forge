@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Build\App;
 
 use Flames\Collection\Arr;
@@ -27,15 +29,11 @@ class Mobile
     protected bool $installer = false;
     protected bool $run = false;
 
-    public function __construct($data)
-    {
+    public function __construct(mixed $data) {}
 
-    }
-
-    public function run(bool $debug = false) : bool
+    public function run(bool $debug = false): bool
     {
-        // Stack overflow protection
-        if (self::$isRunningBuild === true) {
+        if (self::$isRunningBuild) {
             return false;
         }
 
@@ -43,10 +41,10 @@ class Mobile
 
         $this->debug = $debug;
 
-        $this->toolsPath = (ROOT_PATH . '.cache/tools/mobile/android/');
-        $this->buildPath = (ROOT_PATH . '.cache/build-mobile/');
+        $this->toolsPath = ROOT_PATH . '.cache/tools/mobile/android/';
+        $this->buildPath = ROOT_PATH . '.cache/build-mobile/';
 
-        if (is_dir($this->toolsPath) === false) {
+        if (!is_dir($this->toolsPath)) {
             $mask = umask(0);
             mkdir($this->toolsPath, 0777, true);
             umask($mask);
@@ -63,33 +61,30 @@ class Mobile
 
     protected function syncProject(): void
     {
-        $mobileVersion = (int)Sync::getData('mobile.android');
+        $mobileVersion    = (int)Sync::getData('mobile.android');
+        $toolsVersionPath = $this->toolsPath . sha1('version');
 
-        $toolsVersionPath = ($this->toolsPath . sha1('version'));
-        if (file_exists($toolsVersionPath) === false) {
+        if (!file_exists($toolsVersionPath) ||
+            (int)file_get_contents($toolsVersionPath) !== $mobileVersion) {
             $this->downloadProject($mobileVersion, $toolsVersionPath);
-        } else {
-            $localToolsVersionPath = (int)file_get_contents($toolsVersionPath);
-            if ($localToolsVersionPath !== $mobileVersion) {
-                $this->downloadProject($mobileVersion, $toolsVersionPath);
-            }
         }
     }
 
     protected function downloadProject(int $mobileVersion, string $toolsVersionPath): void
     {
-        file_put_contents($this->toolsPath . 'install.zip',
+        file_put_contents(
+            $this->toolsPath . 'install.zip',
             file_get_contents('https://cdn.jsdelivr.net/gh/flamesphp/cdn@' . Kernel::CDN_VERSION . '/tools/android.zip.dat')
         );
 
         file_put_contents($toolsVersionPath, $mobileVersion);
     }
 
-    protected function cleanBuild() : void
+    protected function cleanBuild(): void
     {
         $currentPath = getcwd();
 
-        if (\Flames\Server\Os::isWindows() === true) {
+        if (\Flames\Server\Os::isWindows()) {
             @exec('del /s /q "' . $this->buildPath . '"');
             sleep(1);
             $this->checkBuildPath();
@@ -99,18 +94,18 @@ class Mobile
             chdir($currentPath);
         }
 
-        if (is_dir($this->buildPath) === false) {
+        if (!is_dir($this->buildPath)) {
             return;
         }
 
         $buildFiles = $this->getDirContents($this->buildPath);
         foreach ($buildFiles as $buildFile) {
-            if (is_file($buildFile) === true) {
+            if (is_file($buildFile)) {
                 @unlink($buildFile);
             }
         }
         foreach ($buildFiles as $buildFile) {
-            if (is_dir($buildFile) === true) {
+            if (is_dir($buildFile)) {
                 @rmdir($buildFile);
             }
         }
@@ -118,29 +113,35 @@ class Mobile
         $this->checkBuildPath();
     }
 
-    protected function getDirContents($dir, &$results = [])
+    protected function getDirContents(string $dir): array
     {
         if (!is_dir($dir)) {
             return [];
         }
-        $files = scandir($dir);
 
-        foreach ($files as $key => $value) {
-            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
-            if (!is_dir($path)) {
-                $results[] = $path;
-            } else if ($value !== '.' && $value !== '..') {
-                $this->getDirContents($path, $results);
-                $results[] = $path;
+        $files = [];
+        $dirs  = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $path = $item->getPathname();
+            if ($item->isDir()) {
+                $dirs[] = $path;
+            } else {
+                $files[] = $path;
             }
         }
 
-        return $results;
+        return array_merge($files, $dirs);
     }
 
     protected function checkBuildPath(): void
     {
-        if (is_dir($this->buildPath) === false) {
+        if (!is_dir($this->buildPath)) {
             $mask = umask(0);
             mkdir($this->buildPath, 0777, true);
             umask($mask);
@@ -149,7 +150,7 @@ class Mobile
 
     protected function setupProject(): void
     {
-        $zip = new ZipArchive;
+        $zip = new ZipArchive();
         $zip->open($this->toolsPath . 'install.zip');
         $zip->extractTo($this->buildPath);
         $zip->close();

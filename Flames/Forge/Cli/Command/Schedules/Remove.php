@@ -1,22 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Schedules;
 
 use Flames\Forge\Cli\Output;
 use Flames\Server\Os;
 
 /**
- * @internal
+ * Removes the "forge schedule run" crontab entry.
  *
- * Removes the "forge schedule run" crontab entry created by `schedule install`.
+ * @internal
  */
 final class Remove
 {
-    public function __construct($data) {}
+    public function __construct(mixed $data) {}
 
     public function run(bool $debug = false): bool
     {
-        if (Os::isUnix() === false) {
+        if (!Os::isUnix()) {
             Output::warning('Crontab management is only supported on Unix/Linux/macOS.');
             return false;
         }
@@ -41,28 +43,25 @@ final class Remove
             }
         }
 
-        $newCron = implode("\n", $kept);
-        // Trim trailing blank lines but keep a final newline
-        $newCron = rtrim($newCron) . "\n";
+        $newCron = rtrim(implode("\n", $kept)) . "\n";
 
-        if ($this->writeCrontab($newCron) === false) {
+        if (!$this->writeCrontab($newCron)) {
             Output::error('Failed to write crontab. Try running: crontab -e');
             return false;
         }
 
-        Output::success("Removed {$removed} crontab " . ($removed === 1 ? 'entry' : 'entries') . " for forge schedule run.");
+        $word = $removed === 1 ? 'entry' : 'entries';
+        Output::success("Removed {$removed} crontab {$word} for forge schedule run.");
         return true;
     }
 
-    protected function readCrontab(): string
+    private function readCrontab(): string
     {
-        $output = shell_exec('crontab -l 2>/dev/null');
-        return $output !== null ? $output : '';
+        return (string)shell_exec('crontab -l 2>/dev/null');
     }
 
-    protected function writeCrontab(string $content): bool
+    private function writeCrontab(string $content): bool
     {
-        // An empty crontab should remove all entries
         if (trim($content) === '') {
             shell_exec('crontab -r 2>/dev/null');
             return true;
@@ -77,6 +76,6 @@ final class Remove
         $result = shell_exec('crontab ' . escapeshellarg($tmp) . ' 2>&1');
         unlink($tmp);
 
-        return $result === null || trim($result) === '';
+        return $result === null || trim((string)$result) === '';
     }
 }

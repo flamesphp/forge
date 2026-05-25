@@ -1,31 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Key;
 
 use Flames\Crypto\Hash;
 use Flames\Environment;
 
 /**
- * Class Generate
- *
- * The Generate class is responsible for generating the application key for the environment.
+ * Generates (or regenerates) the application key in .env.
  *
  * @internal
  */
 final class Generate
 {
-    protected bool $debug = false;
+    public function __construct(mixed $data) {}
 
-    /**
-     * Run the key generation.
-     *
-     * @param bool $debug Set to true if debug mode is enabled, false otherwise.
-     * @return bool Returns true if the application runs successfully, false otherwise.
-     */
-    public function run(bool $debug = false) : bool
+    public function run(bool $debug = false): bool
     {
         $environment = Environment::default();
-        if ($environment->isValid() === false) {
+        if (!$environment->isValid()) {
             return false;
         }
 

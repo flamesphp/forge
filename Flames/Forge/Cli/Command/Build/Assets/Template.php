@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Flames\Forge\Cli\Command\Build\Assets;
 
 use Flames;
@@ -205,7 +207,7 @@ class Template
 
     public static function isTemplateExtension(): bool
     {
-        return (Flames\Environment::get('CLIENT_TEMPLATE_ENABLED') === true);
+        return Flames\Environment::get('CLIENT_TEMPLATE_ENABLED') === true;
     }
 
     public static function injectDefaultFiles(array $defaultFiles): array
