@@ -55,6 +55,7 @@ final class Container
             'run'      => $this->runCompose(in_array('--foreground', $options, true) ? ['up'] : ['up', '-d']),
             'build'    => $this->runCompose(['build']),
             'stop'     => $this->runCompose(['down']),
+            'app'      => $this->handleApp($options),
             default    => $this->runExec($first, $options),
         };
     }
@@ -90,6 +91,69 @@ final class Container
         }
 
         return 'php forge ' . implode(' ', array_map('escapeshellarg', $args));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private function handleApp(array $options): bool
+    {
+        if (($options[0] ?? '') !== 'set' || !isset($options[1])) {
+            Output::error('Usage: container app set {image}');
+            return false;
+        }
+
+        return $this->setApp($options[1]);
+    }
+
+    private function setApp(string $image): bool
+    {
+        $images = [
+            'apache_modphp'       => 'vendor/flamesphp/docker/resource/image/apache_modphp/apache_modphp.yml',
+            'apache_phpfpm'       => 'vendor/flamesphp/docker/resource/image/apache_phpfpm/apache_phpfpm.yml',
+            'nginx_phpfpm'        => 'vendor/flamesphp/docker/resource/image/nginx_phpfpm/nginx_phpfpm.yml',
+            'nginx_phpfpm_flames' => 'vendor/flamesphp/docker/resource/image/nginx_phpfpm_flames/nginx_phpfpm_flames.yml',
+        ];
+
+        if (!isset($images[$image])) {
+            Output::error("Unknown image '{$image}'. Available: " . implode(', ', array_keys($images)));
+            return false;
+        }
+
+        $envPath = ROOT_PATH . '.env';
+        if (!file_exists($envPath)) {
+            Output::error('.env file not found.');
+            return false;
+        }
+
+        $content = (string) file_get_contents($envPath);
+
+        // Parse existing COMPOSE_FILE entries
+        preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
+        $entries = isset($matches[1])
+            ? array_filter(array_map('trim', explode(':', $matches[1])))
+            : ['docker-compose.yml'];
+
+        // Remove any existing app image yml, keep all other services (mariadb, mongodb, etc.)
+        $appYmls  = array_values($images);
+        $filtered = array_values(array_filter($entries, fn($e) => !in_array($e, $appYmls, true)));
+
+        // Ensure docker-compose.yml is always first
+        if (!in_array('docker-compose.yml', $filtered, true)) {
+            array_unshift($filtered, 'docker-compose.yml');
+        }
+
+        // Append the new app yml right after docker-compose.yml
+        array_splice($filtered, 1, 0, [$images[$image]]);
+
+        $composeFile = implode(':', $filtered);
+        $content     = preg_replace('/^COMPOSE_FILE=.*$/m', 'COMPOSE_FILE=' . $composeFile, $content);
+        file_put_contents($envPath, $content);
+
+        Output::success("Switched to {$image}.");
+        Output::info('Building and starting containers...');
+
+        passthru(self::COMPOSE . ' up -d --build', $code);
+        return $code === 0;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

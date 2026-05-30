@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Flames\Forge;
 
+use Flames\Framework\StaticData;
+
 /**
  * Detects whether the current execution context is a CLI forge invocation.
  */
@@ -14,7 +16,10 @@ final class Cli
      */
     public static function isCli(): bool
     {
-        $base = basename($_SERVER['SCRIPT_FILENAME'] ?? '');
-        return \Flames\Kernel::MODULE === 'SERVER' && ($base === 'forge' || $base === 'bin');
+        return once(function() {
+            $base = basename($_SERVER['SCRIPT_FILENAME'] ?? '');
+            return ($base === 'forge');
+        });
     }
 }
+

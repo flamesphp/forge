@@ -120,16 +120,20 @@ final class System
     ];
 
     private const CONTAINER_HELP = [
-        ['container',                      'Show running container status'],
-        ['container run',                  'Start containers in the background'],
-        ['container run --foreground',     'Start containers in the foreground'],
-        ['container build',                'Build / rebuild container images'],
-        ['container stop',                 'Stop and remove containers'],
-        ['container compose {args}',       'Run any docker compose command'],
-        ['container {service}',            'Open a bash shell in a container'],
-        ['container {service} bash|sh',    'Open bash or sh in a container'],
-        ['container {service} {command}',  'Run "php forge {command}" inside a container'],
-        ['container {service} php {args}', 'Run an explicit php command inside a container'],
+        ['container',                                    'Show running container status'],
+        ['container run',                                'Start containers in the background'],
+        ['container run --foreground',                   'Start containers in the foreground'],
+        ['container build',                              'Build / rebuild container images'],
+        ['container stop',                               'Stop and remove containers'],
+        ['container compose {args}',                     'Run any docker compose command'],
+        ['container app set apache_modphp',              'Apache with PHP mod'],
+        ['container app set apache_phpfpm',              'Apache with PHP-FPM'],
+        ['container app set nginx_phpfpm',               'NGINX with PHP-FPM'],
+        ['container app set nginx_phpfpm_flames',        'NGINX with PHP-FPM and Flames C extensions (recommended for develop)'],
+        ['container {service}',                          'Open a bash shell in a container'],
+        ['container {service} bash|sh',                  'Open bash or sh in a container'],
+        ['container {service} {command}',                'Run "php forge {command}" inside a container'],
+        ['container {service} php {args}',               'Run an explicit php command inside a container'],
     ];
 
     private const DATABASE_HELP = [

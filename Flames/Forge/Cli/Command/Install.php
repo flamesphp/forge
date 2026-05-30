@@ -46,14 +46,19 @@ final class Install
 
     private function copyIndex(): void
     {
-        $indexPath = ROOT_PATH . 'index.php';
-        if (file_exists($indexPath)) {
-            return;
-        }
-
         $examplePath = ROOT_PATH . 'vendor/flamesphp/example/index.php';
         if (file_exists($examplePath)) {
-            copy($examplePath, $indexPath);
+            copy($examplePath, ROOT_PATH . 'index.php');
+        }
+
+        $publicDir = ROOT_PATH . 'public';
+        if (!is_dir($publicDir)) {
+            mkdir($publicDir, 0755, true);
+        }
+
+        $examplePublicPath = ROOT_PATH . 'vendor/flamesphp/example/public/index.php';
+        if (file_exists($examplePublicPath)) {
+            copy($examplePublicPath, $publicDir . '/index.php');
         }
     }
 

@@ -71,7 +71,7 @@ final class Kernel
         // ── 4. Load kernel ────────────────────────────────────────────────────
         chdir($projectRoot);
         require $projectRoot . DIRECTORY_SEPARATOR . $kernelFile;
-        \Flames\Kernel::run();
+        \Flames\Kernel::boot();
 
         exit(0);
     }

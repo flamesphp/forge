@@ -6,7 +6,13 @@
   "minimum-stability": "dev",
   "prefer-stable": true,
   "require": {
-    "php": ">=8.5"
+    "php": ">=8.5",
+    "ext-pdo": "*",
+    "ext-zip": "*",
+    "ext-gd": "*",
+    "ext-posix": "*",
+    "ext-readline": "*",
+    "ext-tokenizer": "*"
   },
   "extra": {
     "exclude-from-classmap": [

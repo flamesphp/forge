@@ -78,7 +78,7 @@ final class Assets
         Flames\FunctionEx::class,
         Flames\Cache\Memory\Client::class,
         Flames\Cookie\Client::class,
-        Flames\DateTime::class,
+        Flames\Date\DateTime::class,
         Flames\Date\TimeZone\Client::class,
         Flames\Kernel\Client\Dispatch\Native::class,
         Flames\Client\Native::class,
