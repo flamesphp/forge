@@ -11,7 +11,7 @@ use Flames\Server\Process;
 /**
  * @internal
  */
-final class Show
+final readonly class Show
 {
     public function __construct(mixed $data) {}
 

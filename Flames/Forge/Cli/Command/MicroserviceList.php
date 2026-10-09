@@ -12,7 +12,7 @@ use Flames\Kernel\Config;
  *
  * @internal
  */
-final class MicroserviceList
+final readonly class MicroserviceList
 {
     public function __construct(mixed $data) {}
 

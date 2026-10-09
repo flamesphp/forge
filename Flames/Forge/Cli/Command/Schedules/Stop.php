@@ -10,9 +10,9 @@ use Flames\Server\Process;
 /**
  * @internal
  */
-final class Stop
+final readonly class Stop
 {
-    private readonly string|null $target;
+    private string|null $target;
 
     public function __construct(mixed $data)
     {

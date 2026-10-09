@@ -10,7 +10,7 @@ use Flames\Kernel\Config;
 /**
  * @internal
  */
-final class ListSchedules
+final readonly class ListSchedules
 {
     public function __construct(mixed $data) {}
 

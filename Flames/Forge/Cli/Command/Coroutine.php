@@ -14,7 +14,7 @@ final class Coroutine
     private static bool $isCoroutineRunning = false;
     private static ?self $currentCoroutine  = null;
 
-    private const BASE_FOLDER = '.cache/coroutine/';
+    private const string BASE_FOLDER = '.cache/coroutine/';
 
     private ?array $coroutine = null;
 
@@ -44,7 +44,7 @@ final class Coroutine
         $method = $this->coroutine['method'];
 
         // Deserialize args and pad to 16 positional parameters
-        $args = array_map('unserialize', $this->coroutine['args']);
+        $args = array_map(unserialize(...), $this->coroutine['args']);
         if (count($args) < 16) {
             $args = array_pad($args, 16, null);
         }

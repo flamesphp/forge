@@ -16,15 +16,14 @@ namespace Flames\Forge;
 final class Kernel
 {
     /** Commands that must always run locally (interactive TTY or local-only). */
-    private const LOCAL_ONLY = [
+    private const array LOCAL_ONLY = [
         'container' => true,
-        'package'   => true,
         'db'        => true,
         'shell'     => true,
     ];
 
     /** Docker Unix socket paths checked in order. */
-    private const DOCKER_SOCKETS = ['/var/run/docker.sock', '/run/docker.sock'];
+    private const array DOCKER_SOCKETS = ['/var/run/docker.sock', '/run/docker.sock'];
 
     /**
      * Boot the forge entry point.
@@ -32,7 +31,7 @@ final class Kernel
      * @param string $projectRoot Absolute path to the project / framework root.
      * @param string $kernelFile  Path to Kernel.php relative to $projectRoot.
      */
-    public static function boot(string $projectRoot, string $kernelFile): never
+    public static function boot(string $projectRoot, string $kernelFile, bool $run = false): void
     {
         // ── 1. Parse routing flags ────────────────────────────────────────────
         $forceNative    = false;
@@ -54,7 +53,7 @@ final class Kernel
             if ($forceContainer || self::dockerIsRunning()) {
                 $container = self::getAppContainer($projectRoot);
                 if ($container !== null) {
-                    $innerArgs = implode(' ', array_map('escapeshellarg', $filteredArgs));
+                    $innerArgs = implode(' ', array_map(escapeshellarg(...), $filteredArgs));
                     passthru(
                         'docker exec -it ' . escapeshellarg($container) . ' php forge ' . $innerArgs,
                         $exitCode
@@ -72,6 +71,16 @@ final class Kernel
         chdir($projectRoot);
         require $projectRoot . DIRECTORY_SEPARATOR . $kernelFile;
         \Flames\Kernel::boot();
+
+        if ($run === true) {
+            self::run();
+        }
+    }
+
+    public static function run(): never
+    {
+        $system = new \Flames\Forge\Cli\System();
+        $system->run();
 
         exit(0);
     }
@@ -94,14 +103,7 @@ final class Kernel
         if (file_exists('/.dockerenv')) {
             return false;
         }
-
-        foreach (self::DOCKER_SOCKETS as $sock) {
-            if (file_exists($sock)) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any(self::DOCKER_SOCKETS, fn($sock) => file_exists($sock));
     }
 
     /**
@@ -135,7 +137,7 @@ final class Kernel
         }
 
         // Pre-lowercase once — avoids repeated strtolower() inside loops
-        $namesLower = array_map('strtolower', $names);
+        $namesLower = array_map(strtolower(...), $names);
 
         // 1st pass: project slug + known app-service keywords
         foreach ($namesLower as $i => $n) {

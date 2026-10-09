@@ -12,7 +12,7 @@ use Flames\Server\Os;
  *
  * @internal
  */
-final class Install
+final readonly class Install
 {
     public function __construct(mixed $data) {}
 

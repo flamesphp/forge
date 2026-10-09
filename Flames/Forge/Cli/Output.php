@@ -12,17 +12,17 @@ final class Output
     private static ?bool $isCli = null;
 
     // ANSI escape sequences
-    public const RESET  = "\033[0m";
-    public const BOLD   = "\033[1m";
-    public const DIM    = "\033[2m";
-    public const GREEN  = "\033[32m";
-    public const YELLOW = "\033[33m";
-    public const BLUE   = "\033[34m";
-    public const CYAN   = "\033[36m";
-    public const WHITE  = "\033[97m";
-    public const GRAY   = "\033[90m";
-    public const RED    = "\033[31m";
-    public const ORANGE = "\033[38;5;208m";
+    public const string RESET  = "\033[0m";
+    public const string BOLD   = "\033[1m";
+    public const string DIM    = "\033[2m";
+    public const string GREEN  = "\033[32m";
+    public const string YELLOW = "\033[33m";
+    public const string BLUE   = "\033[34m";
+    public const string CYAN   = "\033[36m";
+    public const string WHITE  = "\033[97m";
+    public const string GRAY   = "\033[90m";
+    public const string RED    = "\033[31m";
+    public const string ORANGE = "\033[38;5;208m";
 
     public static function line(string $text = ''): void
     {
@@ -92,9 +92,7 @@ final class Output
 
     private static function echo(string $message): void
     {
-        if (self::$isCli === null) {
-            self::$isCli = \Flames\Forge\Cli::isCli();
-        }
+        self::$isCli ??= \Flames\Forge\Cli::isCli();
 
         if (!self::$isCli) {
             return;

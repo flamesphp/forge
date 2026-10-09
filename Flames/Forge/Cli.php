@@ -16,6 +16,10 @@ final class Cli
      */
     public static function isCli(): bool
     {
+        if (defined('FLAMES_READY_WORKER')) {
+            return false;
+        }
+
         return once(function() {
             $base = basename($_SERVER['SCRIPT_FILENAME'] ?? '');
             return ($base === 'forge');

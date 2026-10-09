@@ -12,10 +12,10 @@ use Flames\Server\Process;
 /**
  * @internal
  */
-final class Run
+final readonly class Run
 {
     /** How long (seconds) the command loops so cron-triggered sub-minute schedules are handled. */
-    private const LOOP_DURATION = 59;
+    private const int LOOP_DURATION = 59;
 
     public function __construct(mixed $data) {}
 
@@ -190,12 +190,7 @@ final class Run
 
     private static function hasSubMinuteSchedules(array $schedules): bool
     {
-        foreach ($schedules as $schedule) {
-            if (!empty($schedule['run']['every']['second'])) {
-                return true;
-            }
-        }
-        return false;
+        return array_any($schedules, fn($schedule) => !empty($schedule['run']['every']['second']));
     }
 
     public static function calculateInterval(array $every): int

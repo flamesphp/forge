@@ -20,7 +20,7 @@ class Mobile
     protected string $buildPath;
     protected string $assetsPath;
     protected string $toolsPath;
-    protected Arr|null $inputs;
+    protected Arr|null $inputs = null;
 
     protected static bool $isRunningBuild = false;
 

@@ -11,7 +11,7 @@ use Flames\Server\Os;
 /**
  * @internal
  */
-final class Install
+final readonly class Install
 {
     public function __construct(mixed $data) {}
 
@@ -25,7 +25,7 @@ final class Install
         $this->generateKeys();
 
         if (Os::isUnix()) {
-            (new Inject(null))->run(false, true);
+            new Inject(null)->run(false, true);
         }
 
         return true;
@@ -46,11 +46,6 @@ final class Install
 
     private function copyIndex(): void
     {
-        $examplePath = ROOT_PATH . 'vendor/flamesphp/example/index.php';
-        if (file_exists($examplePath)) {
-            copy($examplePath, ROOT_PATH . 'index.php');
-        }
-
         $publicDir = ROOT_PATH . 'public';
         if (!is_dir($publicDir)) {
             mkdir($publicDir, 0755, true);

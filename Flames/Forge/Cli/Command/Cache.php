@@ -16,13 +16,13 @@ use Flames\Forge\Cli\Output;
  *
  * @internal
  */
-final class Cache
+final readonly class Cache
 {
-    private const MODE_PURGE  = 'purge';
-    private const MODE_KERNEL = 'kernel';
-    private const MODE_ALL    = 'all';
+    private const string MODE_PURGE  = 'purge';
+    private const string MODE_KERNEL = 'kernel';
+    private const string MODE_ALL    = 'all';
 
-    private readonly string $mode;
+    private string $mode;
 
     public function __construct(mixed $data)
     {

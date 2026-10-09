@@ -6,19 +6,22 @@ namespace Flames\Forge\Cli\Command\Build\App;
 
 use Flames\Collection\Arr;
 use Flames\Command;
-use Flames\Controller\Response;
+use Flames\Framework\Controller\Response;
 use Flames\Environment;
-use Flames\Event;
-use Flames\Header;
+use Flames\Framework\Event;
+use Flames\Interfaces\Event\Initialize as InitializeContract;
+use Flames\Interfaces\Event\Route as RouteContract;
+use Flames\Framework\Header;
+use Flames\Router;
 use Flames\Kernel;
-use Flames\Kernel\Route;
+use Flames\Framework\Controller\RequestMount;
 use ZipArchive;
 
 class StaticEx
 {
     protected bool $debug = false;
     protected string $buildPath;
-    protected Arr|null $inputs;
+    protected Arr|null $inputs = null;
 
     protected static bool $isRunningBuild = false;
 
@@ -49,8 +52,7 @@ class StaticEx
         $this->copyPublic();
         $this->saveInputs();
 
-        $router = Kernel::getDefaultRouter();
-        $metadatas = $router->getMetadata();
+        $metadatas = Router::getMetadata();
 
         foreach ($metadatas as $metadata) {
             if (str_contains($metadata->methods, 'GET') !== true) {
@@ -58,13 +60,13 @@ class StaticEx
             }
 
             $_SERVER['REQUEST_URI'] = $metadata->routeFormatted;
-            $match = $router->getMatch();
+            $match = Router::getMatch();
             $responseData = $this->getResponse($match);
 
             $this->saveResponse($metadata, $responseData);
         }
 
-        Command::run('build:assets');
+        Command::run('surface build');
 
         $this->buildFlames();
         $this->buildZip();
@@ -85,7 +87,7 @@ class StaticEx
 
         $appName = (string)(Environment::get('APP_NAME') ?? '');
         $zipName = ($appName !== '' ? strtolower($appName) . '_' : 'build_')
-                 . (new \DateTimeImmutable())->format('Y_m_d_His');
+                 . new \DateTimeImmutable()->format('Y_m_d_His');
         $zipPath = $buildZipPath . $zipName . '.zip';
 
         $zip = new ZipArchive();
@@ -234,26 +236,21 @@ class StaticEx
 
     protected function saveHeader(mixed $metadata, mixed $responseData, array $urls): void {}
 
-    public function getResponse(mixed $routeData): bool|Arr
+    public function getResponse(\Flames\Router\RouteMatch $match): bool|Arr
     {
         Header::set('X-Powered-By', 'Flames');
-        if (Event::dispatch('Initialize', 'onInitialize') === false) {
+        if (Event::dispatch(InitializeContract::class, 'Initialize', 'onInitialize') === false) {
             return false;
         }
 
-        $requestData      = Route::mountRequestData($routeData);
-        $requestDataAllow = Event::dispatch('Route', 'onMatch', $requestData);
+        $requestData      = RequestMount::mountRequestData($match);
+        $requestDataAllow = Event::dispatch(RouteContract::class, 'Route', 'onMatch', $requestData);
         if ($requestDataAllow === false) {
             return false;
         }
 
-        $controller = new $routeData->controller();
-        $response   = $controller->{$routeData->delegate}($requestData);
-
-        if (!($response instanceof Response)) {
-            $response = new Response($response);
-        }
-
+        $controller = new $match->controller();
+        $response   = Response::from($controller->onRequest($requestData));
         $output = $response->output;
 
         $_output = Event::dispatch('Output', 'onOutput', $requestData, $output);
@@ -262,11 +259,7 @@ class StaticEx
         }
 
         Header::set('Code', $response->code);
-        if ($response->headers !== null) {
-            foreach ($response->headers as $key => $value) {
-                Header::set($key, $value);
-            }
-        }
+        Header::set('Content-Type', $response->contentType);
 
         $data = Arr([
             'header' => Header::getAll(),

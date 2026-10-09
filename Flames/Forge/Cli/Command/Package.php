@@ -4,30 +4,30 @@ declare(strict_types=1);
 
 namespace Flames\Forge\Cli\Command;
 
-use Flames\Library\AutoLoad;
-use Flames\Library\Composer\Console\Application;
-use Flames\Library\Symfony\Component\Console\Input\StringInput;
-use Flames\Library\Symfony\Component\Console\Output\ConsoleOutput;
+use Flames\Composer\AutoLoad;
+use Flames\Composer\Composer\Console\Application;
+use Flames\Composer\Symfony\Component\Console\Input\StringInput;
+use Flames\Composer\Symfony\Component\Console\Output\ConsoleOutput;
 
 /**
- * Runs Composer operations programmatically via the scoped Flames\Library\Composer
+ * Runs Composer operations programmatically via the scoped Flames\Composer\Composer
  * classes — no CLI binary required.
  *
  * Usage examples:
- *   forge library require vendor/package
- *   forge library remove vendor/package
- *   forge library update
- *   forge library show
- *   forge library audit
- *   forge library validate
- *   forge library {any-composer-command} [args...]
+ *   forge composer require vendor/package
+ *   forge composer remove vendor/package
+ *   forge composer update
+ *   forge composer show
+ *   forge composer audit
+ *   forge composer validate
+ *   forge composer {any-composer-command} [args...]
  *
  * @internal
  */
-final class Package
+final readonly class Package
 {
     /** @var list<string> */
-    private readonly array $args;
+    private array $args;
 
     public function __construct(mixed $data)
     {
@@ -45,7 +45,7 @@ final class Package
 
         $inputStr = empty($this->args)
             ? 'list --ansi'
-            : implode(' ', array_map('escapeshellarg', $this->args)) . ' --ansi';
+            : implode(' ', array_map(escapeshellarg(...), $this->args)) . ' --ansi';
 
         $app = new Application();
         $app->setAutoExit(false);

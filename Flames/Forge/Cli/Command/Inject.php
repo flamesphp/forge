@@ -17,9 +17,9 @@ use Flames\Server\Os;
  *
  * @internal
  */
-final class Inject
+final readonly class Inject
 {
-    private const WRAPPER_CONTENT = <<<'BASH'
+    private const string WRAPPER_CONTENT = <<<'BASH'
 #!/bin/bash
 # Global forge launcher — walks up the directory tree to find a project's forge file.
 dir="$PWD"
@@ -33,7 +33,7 @@ echo "forge: No forge file found in the current or any parent directory." >&2
 exit 1
 BASH;
 
-    private const PATH_SNIPPET = 'if [ -d "$HOME/.local/bin" ]; then export PATH="$HOME/.local/bin:$PATH"; fi';
+    private const string PATH_SNIPPET = 'if [ -d "$HOME/.local/bin" ]; then export PATH="$HOME/.local/bin:$PATH"; fi';
 
     public function __construct(mixed $data) {}
 

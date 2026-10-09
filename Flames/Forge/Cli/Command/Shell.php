@@ -20,14 +20,14 @@ use Flames\Dump\Dump;
  *   - variable persistence across evaluations
  *   - \q, exit, quit to exit
  */
-final class Shell
+final readonly class Shell
 {
     // \x01 / \x02 = RL_PROMPT_START_IGNORE / RL_PROMPT_END_IGNORE
     // These tell readline not to count ANSI bytes when computing cursor position.
-    protected const PROMPT      = "\x01\033[38;5;208m\033[1m\x02flames\x01\033[0m\033[90m\x02>>>\x01\033[0m\x02 ";
-    protected const PROMPT_CONT = "\x01\033[90m\x02...\x01\033[0m\x02 ";
-    protected const HISTORY_FILE = '~/.flames_shell_history';
-    private const   SUPER_GLOBALS = ['_GET', '_POST', '_COOKIE', '_FILES', '_SERVER', '_ENV', '_REQUEST', '_SESSION', 'GLOBALS', 'argv', 'argc'];
+    protected const string PROMPT      = "\x01\033[38;5;208m\033[1m\x02flames\x01\033[0m\033[90m\x02>>>\x01\033[0m\x02 ";
+    protected const string PROMPT_CONT = "\x01\033[90m\x02...\x01\033[0m\x02 ";
+    protected const string HISTORY_FILE = '~/.flames_shell_history';
+    private const array   SUPER_GLOBALS = ['_GET', '_POST', '_COOKIE', '_FILES', '_SERVER', '_ENV', '_REQUEST', '_SESSION', 'GLOBALS', 'argv', 'argc'];
 
     public function __construct(mixed $data) {}
 
@@ -185,7 +185,7 @@ final class Shell
             // Try as expression first so we can display the return value
             $__result    = eval('return (' . $__expr . ');');
             $__hasResult = true;
-        } catch (\ParseError $__e) {
+        } catch (\ParseError) {
             // ParseError fires at compile-time — nothing was output yet;
             // discard the inner buffer and re-try as a full statement block.
             ob_clean();  // clean N (N-1 still empty)
@@ -315,7 +315,7 @@ final class Shell
                 default                         => 'Error',
             };
         } else {
-            $label = get_class($error);
+            $label = $error::class;
         }
 
         $msg = $error->getMessage();

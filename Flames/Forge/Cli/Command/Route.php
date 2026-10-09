@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Flames\Forge\Cli\Command;
 
 use Flames\Forge\Cli\Output;
-use Flames\Event;
+use Flames\Framework\Event;
 use Flames\Router;
+use Flames\Interfaces\Event\Route as RouteContract;
 
 /**
  * Lists server-side or client-side routes.
@@ -19,10 +20,10 @@ use Flames\Router;
  *
  * @internal
  */
-final class Route
+final readonly class Route
 {
-    private readonly string $side;
-    private readonly ?string $microservice;
+    private string $side;
+    private ?string $microservice;
 
     public function __construct(mixed $data)
     {
@@ -34,8 +35,7 @@ final class Route
 
     public function run(bool $debug = false): bool
     {
-        $router = $this->loadRouter();
-        if ($router === null) {
+        if ($this->loadRoutes() === false) {
             Output::error('Could not load routes.');
             return false;
         }
@@ -43,16 +43,20 @@ final class Route
         $serverMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
         $filtered      = [];
 
-        foreach ($router->getMetadata() as $route) {
+        foreach (Router::getMetadata() as $route) {
             $method = strtoupper((string)($route->methods ?? ''));
 
             if ($this->side === 'server' && !in_array($method, $serverMethods, true)) {
                 continue;
             }
 
+            if ($this->side === 'client' && in_array($method, $serverMethods, true)) {
+                continue;
+            }
+
             if ($this->microservice !== null) {
                 $controller = (string)($route->controller ?? '');
-                if (!str_contains(strtolower($controller), strtolower($this->microservice))) {
+                if (!str_contains($controller, '\\Microservice\\' . $this->microservice . '\\')) {
                     continue;
                 }
             }
@@ -110,33 +114,29 @@ final class Route
         return true;
     }
 
-    private function loadRouter(): ?Router
+    private function loadRoutes(): bool
     {
-        $router = new Router();
+        Router::clear();
 
         try {
             if ($this->side === 'server') {
-                $result = Event::dispatch('Route', 'onRoute', $router);
-                if ($result instanceof Router) {
-                    $router = $result;
-                }
-                $this->loadMicroserviceServerRoutes($router);
+                Event::dispatch(RouteContract::class, 'Route', 'onRoute');
+                $this->loadMicroserviceServerRoutes();
             } else {
-                $this->loadClientEventFiles($router);
+                $this->loadClientEventFiles();
             }
         } catch (\Throwable) {
-            return null;
+            return false;
         }
 
-        return $router;
+        return Router::hasRoutes();
     }
 
-    private function loadClientEventFiles(Router $router): void
+    private function loadClientEventFiles(): void
     {
         $this->callClientEventFile(
             ROOT_PATH . 'App/Client/Event/Route.php',
-            '\\App\\Client\\Event\\Route',
-            $router
+            '\\App\\Client\\Event\\Route'
         );
 
         $microDir = ROOT_PATH . 'Microservice/';
@@ -147,11 +147,11 @@ final class Route
         foreach (glob($microDir . '*/Client/Event/Route.php') ?: [] as $file) {
             $rel   = str_replace(['\\', ROOT_PATH], ['/', ''], $file);
             $class = '\\' . str_replace('/', '\\', rtrim($rel, '.php'));
-            $this->callClientEventFile($file, $class, $router);
+            $this->callClientEventFile($file, $class);
         }
     }
 
-    private function callClientEventFile(string $file, string $class, Router $router): void
+    private function callClientEventFile(string $file, string $class): void
     {
         if (!file_exists($file)) {
             return;
@@ -160,10 +160,10 @@ final class Route
         if (!class_exists($class, false)) {
             return;
         }
-        (new $class())->onRoute($router);
+        new $class()->onRoute();
     }
 
-    private function loadMicroserviceServerRoutes(Router $router): void
+    private function loadMicroserviceServerRoutes(): void
     {
         $microDir = ROOT_PATH . 'Microservice/';
         if (!is_dir($microDir)) {
@@ -180,10 +180,7 @@ final class Route
             if (!class_exists($class, false)) {
                 continue;
             }
-            $result = (new $class())->onRoute($router);
-            if ($result instanceof Router) {
-                $router = $result;
-            }
+            new $class()->onRoute();
         }
     }
 }

@@ -21,7 +21,7 @@ class Native
     protected bool $debug = false;
     protected string $buildPath;
     protected string $assetsPath;
-    protected Arr|null $inputs;
+    protected Arr|null $inputs = null;
 
     protected static bool $isRunningBuild = false;
 
@@ -543,7 +543,7 @@ class Native
     {
         $appName  = (string)(Environment::get('APP_NAME') ?? '');
         $pathName = $appName !== '' ? strtolower($appName) . '_' : '';
-        return $pathName . (new \DateTimeImmutable())->format('Y_m_d_His');
+        return $pathName . new \DateTimeImmutable()->format('Y_m_d_His');
     }
 
     protected function buildZip(string $buildPath): void
@@ -559,7 +559,7 @@ class Native
 
         $appName = (string)(Environment::get('APP_NAME') ?? '');
         $zipName = 'build_' . ($appName !== '' ? strtolower($appName) . '_' : '')
-                 . (new \DateTimeImmutable())->format('Y_m_d_His');
+                 . new \DateTimeImmutable()->format('Y_m_d_His');
         $zipPath = $buildZipPath . $zipName . '.zip';
 
         $zip = new ZipArchive();

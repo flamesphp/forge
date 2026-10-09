@@ -114,7 +114,13 @@ final class Db
         $prefix = 'DATABASE_' . strtoupper($connName) . '_';
         $driver = strtolower($env[$prefix . 'DRIVER'] ?? $connName);
         $host   = $env[$prefix . 'HOST']     ?? '127.0.0.1';
-        $port   = $env[$prefix . 'PORT']     ?? null;
+        $port   = class_exists(\Flames\Orm\Database\ConnectionPort::class)
+            ? \Flames\Orm\Database\ConnectionPort::resolve(
+                (string) $host,
+                $driver,
+                $env[$prefix . 'PORT'] ?? null,
+            )
+            : (int) ($env[$prefix . 'PORT'] ?? 3306);
         $name   = $env[$prefix . 'NAME']     ?? null;
         $user   = $env[$prefix . 'USER']     ?? null;
         $pass   = $env[$prefix . 'PASSWORD'] ?? '';
@@ -131,7 +137,7 @@ final class Db
                     Output::error("MySQL client not found. Install it with: apt install default-mysql-client");
                     return false;
                 }
-                return $this->runMysql($host, (int)($port ?? 3306), $name, $user, $pass);
+                return $this->runMysql($host, $port, $name, $user, $pass);
 
             case 'pgsql':
             case 'postgresql':
@@ -337,9 +343,10 @@ final class Db
             $rawConn = \Flames\Orm\Database\RawConnection::getByConfigAndDatabase($config, $conn);
 
             $driverClass = match ($config->type) {
-                'mariadb' => \Flames\Orm\Database\Driver\MariaDb::class,
-                'mysql'   => \Flames\Orm\Database\Driver\MySql::class,
-                default   => null,
+                'mariadb'     => \Flames\Orm\Database\Driver\MariaDb::class,
+                'mysql'       => \Flames\Orm\Database\Driver\MySql::class,
+                'postgresql'  => \Flames\Orm\Database\Driver\Postgresql::class,
+                default       => null,
             };
 
             if ($driverClass === null) {
@@ -374,7 +381,13 @@ final class Db
         $prefix = 'DATABASE_' . strtoupper($connName) . '_';
         $driver = strtolower($env[$prefix . 'DRIVER'] ?? $connName);
         $host   = $env[$prefix . 'HOST']     ?? '127.0.0.1';
-        $port   = (int)($env[$prefix . 'PORT'] ?? 3306);
+        $port   = class_exists(\Flames\Orm\Database\ConnectionPort::class)
+            ? \Flames\Orm\Database\ConnectionPort::resolve(
+                (string) $host,
+                $driver,
+                $env[$prefix . 'PORT'] ?? null,
+            )
+            : (int) ($env[$prefix . 'PORT'] ?? 3306);
         $name   = $env[$prefix . 'NAME']     ?? null;
         $user   = $env[$prefix . 'USER']     ?? null;
         $pass   = $env[$prefix . 'PASSWORD'] ?? '';
@@ -515,19 +528,23 @@ final class Db
                 $conn  = null;
 
                 foreach ($ref->getAttributes() as $attr) {
-                    if ($attr->getName() === \Flames\Orm\Database::class) {
-                        $args = $attr->getArguments();
-                        if (isset($args['name'])) $conn = $args['name'];
+                    if ($attr->getName() === \Flames\Orm\Attribute\Database::class) {
+                        /** @var \Flames\Orm\Attribute\Database $instance */
+                        $instance = $attr->newInstance();
+                        if ($instance->name !== null) {
+                            $conn = $instance->name;
+                        }
                     }
-                    if ($attr->getName() === \Flames\Orm\Table::class) {
-                        $args = $attr->getArguments();
-                        if (isset($args['name'])) $table = $args['name'];
+                    if ($attr->getName() === \Flames\Orm\Attribute\Table::class) {
+                        /** @var \Flames\Orm\Attribute\Table $instance */
+                        $instance = $attr->newInstance();
+                        if ($instance->name !== null) {
+                            $table = $instance->name;
+                        }
                     }
                 }
 
-                if ($table === null) {
-                    $table = str_replace('\\', '_', strtolower(substr($className, 17)));
-                }
+                $table ??= str_replace('\\', '_', strtolower(substr($className, 17)));
 
                 $connName = $conn ?? $defaultConn;
                 $prefix   = 'DATABASE_' . strtoupper($connName) . '_';

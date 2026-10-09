@@ -12,7 +12,7 @@ use Flames\Server\Os;
  *
  * @internal
  */
-final class Remove
+final readonly class Remove
 {
     public function __construct(mixed $data) {}
 

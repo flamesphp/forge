@@ -1,5 +1,6 @@
 <?php
 
-echo 'boot forge kernel';
+declare(strict_types=1);
 
-touch('test.txt');
+
+echo 'boot forge kernel';

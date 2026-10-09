@@ -12,7 +12,7 @@ use Flames\Environment;
  *
  * @internal
  */
-final class Generate
+final readonly class Generate
 {
     public function __construct(mixed $data) {}
 
