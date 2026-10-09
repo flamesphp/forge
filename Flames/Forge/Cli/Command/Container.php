@@ -43,7 +43,24 @@ final class Container
     ];
 
     private const array CONTAINER_SERVICES = [
-        'stealth' => 'vendor/flamesphp/docker/resources/service/stealth/stealth.yml',
+        'stealth'    => 'vendor/flamesphp/docker/resources/service/stealth/stealth.yml',
+        'sonarqube'  => 'vendor/flamesphp/docker/resources/service/sonarqube/sonarqube.yml',
+    ];
+
+    /** Default .env lines appended on `container service add` when keys are missing. */
+    private const array SERVICE_ENV_DEFAULTS = [
+        'sonarqube' => <<<'ENV'
+
+# SonarQube Community Build (forge container service add sonarqube)
+SONARQUBE_HOST=sonarqube
+SONARQUBE_PORT=9000
+SONARQUBE_PORT_FORWARDED=19000
+SONARQUBE_DB_USER=sonar
+SONARQUBE_DB_PASSWORD=sonar
+SONARQUBE_DB_NAME=sonar
+SONARQUBE_ADMIN_USER=admin
+SONARQUBE_ADMIN_PASSWORD=admin
+ENV,
     ];
 
     /** @var list<string> Raw args after "container". */
@@ -710,14 +727,26 @@ final class Container
         $entries[]   = self::CONTAINER_SERVICES[$service];
         $composeFile = implode(':', array_unique($entries));
         $content     = preg_replace('/^COMPOSE_FILE=.*$/m', 'COMPOSE_FILE=' . $composeFile, $content);
+        $content     = self::appendServiceEnvDefaults($service, $content);
 
         file_put_contents($envPath, $content);
 
         Output::success("Added {$service} to docker-compose.");
+        if ($service === 'sonarqube') {
+            Sonarqube::warnIfHostSysctlLow();
+        }
         Output::info('Building and starting containers...');
 
         passthru(self::COMPOSE . ' up -d --build', $code);
-        return $code === 0;
+        if ($code !== 0) {
+            return false;
+        }
+
+        if ($service === 'sonarqube') {
+            return Sonarqube::bootstrapAfterServiceAdd();
+        }
+
+        return true;
     }
 
     private function removeService(string $service): bool
@@ -758,6 +787,30 @@ final class Container
 
         passthru(self::COMPOSE . ' up -d --build --force-recreate --remove-orphans', $code);
         return $code === 0;
+    }
+
+    private static function appendServiceEnvDefaults(string $service, string $content): string
+    {
+        $block = self::SERVICE_ENV_DEFAULTS[$service] ?? null;
+        if ($block === null || trim($block) === '') {
+            return $content;
+        }
+
+        foreach (explode("\n", trim($block)) as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            $key = explode('=', $line, 2)[0] ?? '';
+            if ($key !== '' && preg_match('/^' . preg_quote($key, '/') . '=/m', $content) === 1) {
+                return $content;
+            }
+
+            break;
+        }
+
+        return rtrim($content) . "\n" . trim($block) . "\n";
     }
 
     private function setApp(string $image): bool
@@ -854,14 +907,71 @@ final class Container
         return isset(self::$serviceCache[$service]);
     }
 
-    private static function isServiceRunning(string $service): bool
+    public static function isServiceRunning(string $service, ?string $composeFile = null): bool
     {
+        $prefix = $composeFile !== null
+            ? 'COMPOSE_FILE=' . escapeshellarg($composeFile) . ' '
+            : '';
+
         exec(
-            self::COMPOSE . ' ps --status running --services ' . escapeshellarg($service) . ' 2>/dev/null',
+            $prefix . self::COMPOSE . ' ps --status running --services ' . escapeshellarg($service) . ' 2>/dev/null',
             $running,
             $code,
         );
 
+        $running = array_values(array_filter(
+            array_map(trim(...), $running),
+            static fn (string $line): bool => $line !== '',
+        ));
+
         return $code === 0 && $running !== [];
+    }
+
+    public static function composeCommand(): string
+    {
+        return self::COMPOSE;
+    }
+
+    public static function isSonarqubePermanent(): bool
+    {
+        $yml = 'vendor/flamesphp/docker/resources/service/sonarqube/sonarqube.yml';
+
+        $envPath = ROOT_PATH . '.env';
+        if (!is_file($envPath)) {
+            return false;
+        }
+
+        $content = (string) file_get_contents($envPath);
+        if (preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches) !== 1) {
+            return false;
+        }
+
+        $entries = array_filter(array_map(trim(...), explode(':', $matches[1])));
+
+        return in_array($yml, $entries, true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function readComposeFileEntries(): array
+    {
+        $envPath = ROOT_PATH . '.env';
+        if (!is_file($envPath)) {
+            return ['docker-compose.yml'];
+        }
+
+        $content = (string) file_get_contents($envPath);
+        if (preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches) !== 1) {
+            return ['docker-compose.yml'];
+        }
+
+        $entries = array_filter(array_map(trim(...), explode(':', $matches[1])));
+
+        if (!in_array('docker-compose.yml', $entries, true)) {
+            array_unshift($entries, 'docker-compose.yml');
+        }
+
+        return array_values($entries);
     }
 }

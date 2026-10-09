@@ -15,11 +15,12 @@ namespace Flames\Forge;
  */
 final class Kernel
 {
-    /** Commands that must always run locally (interactive TTY or local-only). */
+    /** Commands that must always run locally (interactive TTY, host Docker, or local-only). */
     private const array LOCAL_ONLY = [
         'container' => true,
         'db'        => true,
         'shell'     => true,
+        'code'      => true,
     ];
 
     /** Docker Unix socket paths checked in order. */

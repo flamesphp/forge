@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Flames\Forge\Cli\Command\Build;
 
-use Flames\Env\Env;
 use Flames\Surface\Build\Assets as SurfaceAssets;
 
 /**
@@ -20,10 +19,7 @@ final readonly class Assets
 
     public function __construct(mixed $data)
     {
-        $this->delegate = new SurfaceAssets(
-            $data,
-            legacyEngine: Env::get('SURFACE_ENABLED') !== true,
-        );
+        $this->delegate = new SurfaceAssets($data);
     }
 
     public function run(bool $debug = false): bool

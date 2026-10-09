@@ -29,6 +29,7 @@ use Flames\Forge\Cli\Command\Schedules\Show          as SchedulesShow;
 use Flames\Forge\Cli\Command\Schedules\Stop          as SchedulesStop;
 use Flames\Forge\Cli\Command\Server;
 use Flames\Forge\Cli\Command\Shell;
+use Flames\Forge\Cli\Command\Sast;
 use Flames\Forge\Cli\Command\Upgrade;
 use Flames\Collection\Arr;
 use Flames\Framework\Event;
@@ -69,6 +70,7 @@ final class System
         'cache purge kernel' => Cache::class,
         'cache purge all'    => Cache::class,
         'code upgrade'       => Upgrade::class,
+        'code sast'          => Sast::class,
         'internal:coroutine' => Coroutine::class,
     ];
 
@@ -97,6 +99,7 @@ final class System
         ['code upgrade {php} {path}',               'Upgrade a specific path (e.g. vendor/flamesphp/composer)'],
         ['code upgrade {php} [{path}] --preview',   'Preview code upgrades without saving'],
         ['code upgrade {php} [{path}] --clear-cache', 'Clear upgrade cache before running'],
+        ['code sast [{path}]',                        'Run SonarQube SAST on App/ or a specific path'],
     ];
 
     private const array SCHEDULE_HELP = [
@@ -165,6 +168,8 @@ final class System
         ['container memory remove {engine}',            'Remove a memory engine service'],
         ['container service add stealth',               'Add Stealth (chromium) browser service'],
         ['container service remove stealth',            'Remove Stealth (chromium) browser service'],
+        ['container service add sonarqube',             'Add SonarQube Community Build (code quality)'],
+        ['container service remove sonarqube',          'Remove SonarQube Community Build'],
         ['container {service}',                          'Open a bash shell in a container'],
         ['container {service} bash|sh',                  'Open bash or sh in a container'],
         ['container {service} {command}',                'Run "php forge {command}" inside a container'],
@@ -475,7 +480,8 @@ final class System
             'vendor/flamesphp/docker/resources/search/meilisearch/meilisearch.yml'     => 'meilisearch',
         ];
         $serviceYmlMap = [
-            'vendor/flamesphp/docker/resources/service/stealth/stealth.yml' => 'stealth',
+            'vendor/flamesphp/docker/resources/service/stealth/stealth.yml'       => 'stealth',
+            'vendor/flamesphp/docker/resources/service/sonarqube/sonarqube.yml'   => 'sonarqube',
         ];
 
         $activeApp      = null;

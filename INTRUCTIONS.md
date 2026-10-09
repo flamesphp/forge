@@ -189,6 +189,8 @@ Authoritative list of commands as shown by `forge` help. Source of truth: `Syste
 | `container memory remove {engine}` | Remove a memory engine service |
 | `container service add stealth` | Add Stealth (chromium) browser service |
 | `container service remove stealth` | Remove Stealth (chromium) browser service |
+| `container service add sonarqube` | Add SonarQube Community Build (code quality) |
+| `container service remove sonarqube` | Remove SonarQube Community Build |
 | `container {service}` | Open a bash shell in a container |
 | `container {service} bash\|sh` | Open bash or sh in a container |
 | `container {service} {command}` | Run `php forge {command}` inside a container |
@@ -240,7 +242,7 @@ Shared forge entry-point logic. Used by every `forge` launcher file.
 | `dockerIsRunning(): bool` | private static | Returns true if a Docker Unix socket exists and the process is **not** already inside a container (`/.dockerenv`). Uses socket file check instead of `docker info` for speed. |
 | `getAppContainer(string $projectRoot): ?string` | private static | Finds the best matching running Docker container for the project by slug-matching `docker ps` output against project basename and keywords (`apache`, `-app`, `php`). |
 
-**Local-only commands** (never auto-routed to Docker): `container`, `db`, `shell`.
+**Local-only commands** (never auto-routed to Docker): `container`, `db`, `shell`, `code` (`code sast` needs host Docker).
 
 ---
 
@@ -504,7 +506,7 @@ Manages Docker Compose stacks and `.env` service configuration.
 - **Database:** `mariadb`, `mysql`, `postgresql`, `mongodb`
 - **Memory:** `kvrocks`, `keydb`, `redis`, `dragonfly`, `valkey`, `filedb` (on-disk `${STORAGE_PATH}/flames.filedb/`)
 - **Search:** `opensearch`, `elasticsearch`, `meilisearch`
-- **Services:** `stealth`
+- **Services:** `stealth`, `sonarqube`
 
 ---
 
