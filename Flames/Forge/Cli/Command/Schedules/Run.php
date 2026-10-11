@@ -31,7 +31,7 @@ final readonly class Run
             return true;
         }
 
-        $cacheDir = ROOT_PATH . '.cache/.flames/schedules/';
+        $cacheDir = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/.flames/schedules/';
         if (!is_dir($cacheDir)) {
             $mask = umask(0);
             mkdir($cacheDir, 0777, true);

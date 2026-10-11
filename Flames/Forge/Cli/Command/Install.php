@@ -90,14 +90,14 @@ final readonly class Install
 
     private function copyDockerCompose(): void
     {
-        $dockerComposePath = ROOT_PATH . 'docker-compose.yml';
-        if (file_exists($dockerComposePath)) {
+        $composePath = ROOT_PATH . 'compose.yml';
+        if (file_exists($composePath)) {
             return;
         }
 
-        $sourcePath = ROOT_PATH . 'vendor/flamesphp/docker/resources/docker-compose.yml';
+        $sourcePath = ROOT_PATH . 'vendor/flamesphp/docker/compose.yml';
         if (file_exists($sourcePath)) {
-            copy($sourcePath, $dockerComposePath);
+            copy($sourcePath, $composePath);
         }
     }
 

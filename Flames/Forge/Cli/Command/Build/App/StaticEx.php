@@ -40,7 +40,7 @@ class StaticEx
         self::$isRunningBuild = true;
 
         $this->debug     = $debug;
-        $this->buildPath = ROOT_PATH . '.cache/build/';
+        $this->buildPath = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/build/';
 
         if (!is_dir($this->buildPath)) {
             $mask = umask(0);

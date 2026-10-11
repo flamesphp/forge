@@ -41,8 +41,8 @@ class Mobile
 
         $this->debug = $debug;
 
-        $this->toolsPath = ROOT_PATH . '.cache/tools/mobile/android/';
-        $this->buildPath = ROOT_PATH . '.cache/build-mobile/';
+        $this->toolsPath = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/tools/mobile/android/';
+        $this->buildPath = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/build-mobile/';
 
         if (!is_dir($this->toolsPath)) {
             $mask = umask(0);

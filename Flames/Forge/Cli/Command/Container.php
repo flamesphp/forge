@@ -15,6 +15,8 @@ final class Container
     // when it can't detect a TTY itself (e.g. when called via PHP passthru).
     private const string COMPOSE = 'CLICOLOR_FORCE=1 TERM=xterm-256color docker compose';
 
+    public const string PROJECT_COMPOSE_FILE = 'compose.yml';
+
     /** @var array<string, bool>|null Cached service list (flipped for O(1) lookup). */
     private static ?array $serviceCache = null;
 
@@ -120,7 +122,7 @@ ENV,
     public function runExec(string $service, array $args): bool
     {
         if (!self::serviceExists($service)) {
-            Output::error("Service '{$service}' not found in docker-compose.yml.");
+            Output::error("Service '{$service}' not found in compose.yml.");
             return false;
         }
 
@@ -195,7 +197,7 @@ ENV,
                     return false;
                 }
             } else {
-                Output::error("Database service '{$driver}' not found in docker-compose. Use 'container db add {database}' first.");
+                Output::error("Database service '{$driver}' not found in compose. Use 'container db add {database}' first.");
                 return false;
             }
         }
@@ -240,11 +242,9 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : [];
 
-        if (!in_array('docker-compose.yml', $entries, true)) {
-            array_unshift($entries, 'docker-compose.yml');
-        }
+        $entries = self::normalizeComposeEntries($entries);
 
         $entries[] = self::DATABASES[$driver];
 
@@ -262,7 +262,7 @@ ENV,
 
         file_put_contents($envPath, $content);
 
-        Output::success("Added {$driver} to docker-compose.");
+        Output::success("Added {$driver} to compose.");
         Output::info('Building and starting containers...');
 
         passthru(self::COMPOSE . ' up -d --build', $code);
@@ -287,7 +287,7 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : ['compose.yml'];
 
         $ymlToRemove = self::DATABASES[$driver];
 
@@ -298,7 +298,7 @@ ENV,
 
         $entries = array_values(array_filter($entries, fn($e) => $e !== $ymlToRemove));
 
-        $composeFile = implode(':', $entries ?: ['docker-compose.yml']);
+        $composeFile = implode(':', $entries ?: [self::PROJECT_COMPOSE_FILE]);
         $content     = preg_replace('/^COMPOSE_FILE=.*$/m', 'COMPOSE_FILE=' . $composeFile, $content);
 
         $dbYmlMap  = array_flip(self::DATABASES);
@@ -318,7 +318,7 @@ ENV,
 
         file_put_contents($envPath, $content);
 
-        Output::success("Removed '{$driver}' from docker-compose.");
+        Output::success("Removed '{$driver}' from compose.");
         Output::info('Restarting containers...');
 
         passthru(self::COMPOSE . ' up -d --build --force-recreate --remove-orphans', $code);
@@ -364,7 +364,7 @@ ENV,
                     return false;
                 }
             } else {
-                Output::error("Memory engine '{$engine}' not found in docker-compose. Use 'container memory add {engine}' first.");
+                Output::error("Memory engine '{$engine}' not found in compose. Use 'container memory add {engine}' first.");
                 return false;
             }
         }
@@ -410,11 +410,9 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : [];
 
-        if (!in_array('docker-compose.yml', $entries, true)) {
-            array_unshift($entries, 'docker-compose.yml');
-        }
+        $entries = self::normalizeComposeEntries($entries);
 
         $entries[]   = self::MEMORY_ENGINES[$engine];
         $composeFile = implode(':', array_unique($entries));
@@ -432,7 +430,7 @@ ENV,
 
         file_put_contents($envPath, $content);
 
-        Output::success("Added {$engine} to docker-compose.");
+        Output::success("Added {$engine} to compose.");
         Output::info('Building and starting containers...');
 
         passthru(self::COMPOSE . ' up -d --build', $code);
@@ -457,7 +455,7 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : ['compose.yml'];
 
         $ymlToRemove = self::MEMORY_ENGINES[$engine];
 
@@ -467,7 +465,7 @@ ENV,
         }
 
         $entries     = array_values(array_filter($entries, fn($e) => $e !== $ymlToRemove));
-        $composeFile = implode(':', $entries ?: ['docker-compose.yml']);
+        $composeFile = implode(':', $entries ?: [self::PROJECT_COMPOSE_FILE]);
         $content     = preg_replace('/^COMPOSE_FILE=.*$/m', 'COMPOSE_FILE=' . $composeFile, $content);
 
         $memYmlMap = array_flip(self::MEMORY_ENGINES);
@@ -487,7 +485,7 @@ ENV,
 
         file_put_contents($envPath, $content);
 
-        Output::success("Removed '{$engine}' from docker-compose.");
+        Output::success("Removed '{$engine}' from compose.");
         Output::info('Restarting containers...');
 
         passthru(self::COMPOSE . ' up -d --build --force-recreate --remove-orphans', $code);
@@ -533,7 +531,7 @@ ENV,
                     return false;
                 }
             } else {
-                Output::error("Search engine '{$engine}' not found in docker-compose. Use 'container search add {engine}' first.");
+                Output::error("Search engine '{$engine}' not found in compose. Use 'container search add {engine}' first.");
                 return false;
             }
         }
@@ -585,11 +583,9 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : [];
 
-        if (!in_array('docker-compose.yml', $entries, true)) {
-            array_unshift($entries, 'docker-compose.yml');
-        }
+        $entries = self::normalizeComposeEntries($entries);
 
         $entries[] = self::SEARCH_ENGINES[$engine];
 
@@ -613,7 +609,7 @@ ENV,
 
         file_put_contents($envPath, $content);
 
-        Output::success("Added {$engine} to docker-compose.");
+        Output::success("Added {$engine} to compose.");
         Output::info('Building and starting containers...');
 
         passthru(self::COMPOSE . ' up -d --build', $code);
@@ -638,7 +634,7 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : ['compose.yml'];
 
         $ymlToRemove = self::SEARCH_ENGINES[$engine];
 
@@ -649,7 +645,7 @@ ENV,
 
         $entries = array_values(array_filter($entries, fn($e) => $e !== $ymlToRemove));
 
-        $composeFile = implode(':', $entries ?: ['docker-compose.yml']);
+        $composeFile = implode(':', $entries ?: [self::PROJECT_COMPOSE_FILE]);
         $content     = preg_replace('/^COMPOSE_FILE=.*$/m', 'COMPOSE_FILE=' . $composeFile, $content);
 
         $searchYmlMap = array_flip(self::SEARCH_ENGINES);
@@ -669,7 +665,7 @@ ENV,
 
         file_put_contents($envPath, $content);
 
-        Output::success("Removed '{$engine}' from docker-compose.");
+        Output::success("Removed '{$engine}' from compose.");
         Output::info('Restarting containers...');
 
         passthru(self::COMPOSE . ' up -d --build --force-recreate --remove-orphans', $code);
@@ -718,11 +714,9 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : [];
 
-        if (!in_array('docker-compose.yml', $entries, true)) {
-            array_unshift($entries, 'docker-compose.yml');
-        }
+        $entries = self::normalizeComposeEntries($entries);
 
         $entries[]   = self::CONTAINER_SERVICES[$service];
         $composeFile = implode(':', array_unique($entries));
@@ -731,7 +725,7 @@ ENV,
 
         file_put_contents($envPath, $content);
 
-        Output::success("Added {$service} to docker-compose.");
+        Output::success("Added {$service} to compose.");
         if ($service === 'sonarqube') {
             Sonarqube::warnIfHostSysctlLow();
         }
@@ -767,7 +761,7 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : ['compose.yml'];
 
         $ymlToRemove = self::CONTAINER_SERVICES[$service];
 
@@ -777,12 +771,12 @@ ENV,
         }
 
         $entries     = array_values(array_filter($entries, fn($e) => $e !== $ymlToRemove));
-        $composeFile = implode(':', $entries ?: ['docker-compose.yml']);
+        $composeFile = implode(':', $entries ?: [self::PROJECT_COMPOSE_FILE]);
         $content     = preg_replace('/^COMPOSE_FILE=.*$/m', 'COMPOSE_FILE=' . $composeFile, $content);
 
         file_put_contents($envPath, $content);
 
-        Output::success("Removed '{$service}' from docker-compose.");
+        Output::success("Removed '{$service}' from compose.");
         Output::info('Restarting containers...');
 
         passthru(self::COMPOSE . ' up -d --build --force-recreate --remove-orphans', $code);
@@ -840,18 +834,17 @@ ENV,
         preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches);
         $entries = isset($matches[1])
             ? array_filter(array_map(trim(...), explode(':', $matches[1])))
-            : ['docker-compose.yml'];
+            : [];
+
+        $entries = self::normalizeComposeEntries($entries);
 
         // Remove any existing app image yml, keep all other services (mariadb, mongodb, etc.)
         $appYmls  = array_values($images);
-        $filtered = array_values(array_filter($entries, fn($e) => !in_array($e, $appYmls, true)));
+        $filtered = self::normalizeComposeEntries(
+            array_values(array_filter($entries, fn($e) => !in_array($e, $appYmls, true))),
+        );
 
-        // Ensure docker-compose.yml is always first
-        if (!in_array('docker-compose.yml', $filtered, true)) {
-            array_unshift($filtered, 'docker-compose.yml');
-        }
-
-        // Append the new app yml right after docker-compose.yml
+        // Append the new app yml right after compose.yml
         array_splice($filtered, 1, 0, [$images[$image]]);
 
         $composeFile = implode(':', $filtered);
@@ -884,7 +877,7 @@ ENV,
 
     public static function serviceExists(string $service): bool
     {
-        $composePath = ROOT_PATH . 'docker-compose.yml';
+        $composePath = ROOT_PATH . self::PROJECT_COMPOSE_FILE;
         if (!file_exists($composePath)) {
             return false;
         }
@@ -958,20 +951,36 @@ ENV,
     {
         $envPath = ROOT_PATH . '.env';
         if (!is_file($envPath)) {
-            return ['docker-compose.yml'];
+            return [self::PROJECT_COMPOSE_FILE];
         }
 
         $content = (string) file_get_contents($envPath);
         if (preg_match('/^COMPOSE_FILE=(.*)$/m', $content, $matches) !== 1) {
-            return ['docker-compose.yml'];
+            return [self::PROJECT_COMPOSE_FILE];
         }
 
         $entries = array_filter(array_map(trim(...), explode(':', $matches[1])));
 
-        if (!in_array('docker-compose.yml', $entries, true)) {
-            array_unshift($entries, 'docker-compose.yml');
+        return self::normalizeComposeEntries($entries);
+    }
+
+    /**
+     * @param list<string> $entries
+     * @return list<string>
+     */
+    private static function normalizeComposeEntries(array $entries): array
+    {
+        $entries = array_map(
+            static fn (string $entry): string => $entry === 'docker-compose.yml'
+                ? self::PROJECT_COMPOSE_FILE
+                : $entry,
+            $entries,
+        );
+
+        if (!in_array(self::PROJECT_COMPOSE_FILE, $entries, true)) {
+            array_unshift($entries, self::PROJECT_COMPOSE_FILE);
         }
 
-        return array_values($entries);
+        return array_values(array_unique($entries));
     }
 }

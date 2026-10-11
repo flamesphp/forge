@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace Flames\Forge\Cli\Command;
 
 use Flames\Forge\Cli\Output;
+use Flames\Framework\Cache as FrameworkCache;
 
 /**
  * Cache management commands.
  *
  * Usage:
- *   forge cache purge        — clear .cache (everything except .cache/.flames)
- *   forge cache purge kernel — clear .cache/.flames (except environment and schedules)
- *   forge cache purge all    — clear everything including .cache/.flames
+ *   forge cache purge        — clear .tmp (everything except .tmp/.flames)
+ *   forge cache purge kernel — clear .tmp/.flames (except environment and schedules)
+ *   forge cache purge all    — clear everything including .tmp/.flames
  *
  * @internal
  */
@@ -39,7 +40,7 @@ final readonly class Cache
             ob_end_clean();
         }
 
-        $cacheDir  = ROOT_PATH . '.cache/';
+        $cacheDir  = FrameworkCache::getPath();
         $flamesDir = $cacheDir . '.flames/';
 
         match ($this->mode) {

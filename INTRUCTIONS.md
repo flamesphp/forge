@@ -366,7 +366,7 @@ Bootstraps a new Flames project from example templates.
 | `copyIndex(): void` | Creates `public/index.php` from example. |
 | `copyHtaccess(): void` | Copies `.htaccess` from example if missing. |
 | `copyForge(): void` | Copies `resource/forge` → project `forge` (executable). |
-| `copyDockerCompose(): void` | Copies default `docker-compose.yml` if missing. |
+| `copyDockerCompose(): void` | Copies default `compose.yml` if missing. |
 | `generateKeys(): void` | Generates `APP_KEY` and `CRYPTO_KEY` in `.env` if empty. |
 
 On Unix, silently runs `Inject` to set up global forge launcher.
@@ -531,15 +531,15 @@ Examples: `forge composer require vendor/pkg`, `forge composer update`, `forge c
 | Method | Description |
 |--------|-------------|
 | `__construct(mixed $data)` | Sets mode from command: `purge`, `purge kernel`, or `purge all`. |
-| `run(bool $debug = false): bool` | Clears cache directories under `.cache/`. |
+| `run(bool $debug = false): bool` | Clears cache directories under `.tmp/`. |
 | `clearDir(string $dir, array $skip): int` | Recursively deletes entries, skipping names in `$skip`. |
 | `removeDir(string $dir): void` | Recursive directory removal. |
 
 | Mode | Clears |
 |------|--------|
-| `cache purge` | `.cache/` except `.flames/` |
-| `cache purge kernel` | `.cache/.flames/` except `environment` and `schedules` |
-| `cache purge all` | Everything including `.cache/.flames/` |
+| `cache purge` | `.tmp/` except `.flames/` |
+| `cache purge kernel` | `.tmp/.flames/` except `environment` and `schedules` |
+| `cache purge all` | Everything including `.tmp/.flames/` |
 
 ---
 
@@ -596,7 +596,7 @@ All schedules are defined in `config.yml` under `schedules:`.
 | `hasSubMinuteSchedules(array $schedules): bool` | True if any schedule defines `every.second`. |
 | `calculateInterval(array $every): int` | **Static.** Converts `{second, minute, hour, day, month}` to total seconds. |
 
-**Cache location:** `.cache/.flames/schedules/` — `{name}.json` (last run), `{name}.{pid}.lock` (running), `{name}.log` (output).
+**Cache location:** `.tmp/.flames/schedules/` — `{name}.json` (last run), `{name}.{pid}.lock` (running), `{name}.log` (output).
 
 ### `Flames\Forge\Cli\Command\Schedules\ListSchedules`
 
@@ -674,7 +674,7 @@ Reflection cache for client-side controller classes.
 
 | Method | Description |
 |--------|-------------|
-| `mountData(string $class): Arr` | Returns cached reflection data for a client class. Cache at `.cache/.flames/client-controller/{sha1(class)}`. |
+| `mountData(string $class): Arr` | Returns cached reflection data for a client class. Cache at `.tmp/.flames/client-controller/{sha1(class)}`. |
 | `buildReflection(string $class): Arr` | Scans methods for `#[Click]`, `#[Change]`, `#[Input]` attributes with `uid` argument. |
 
 **Cached data shape:** `{version, class, methods: {methodName: {name, uid, type}}, staticConstruct: bool}`
@@ -703,14 +703,14 @@ Static site generator (`forge snapshot`). Pre-renders all GET routes to HTML fil
 |--------|-------------|
 | `run(bool $debug = false): bool` | Cleans build dir, copies public assets, iterates GET routes, saves HTML, builds JS bundle, creates zip. |
 | `getResponse(RouteMatch $match): bool\|Arr` | Simulates HTTP request: dispatches Initialize + Route events, calls controller, captures output + headers. |
-| `saveResponse(...)` | Writes HTML to `.cache/build/{route}/index.html` and `{route}.html`. |
+| `saveResponse(...)` | Writes HTML to `.tmp/build/{route}/index.html` and `{route}.html`. |
 | `saveHeader(...)` | Hook for Cloudflare header export (empty by default; override for `--cloudflare`). |
 | `buildFlames(): void` | Concatenates `client.js` + compiled `Flames.js` → `flames.js`. |
 | `buildZip(): void` | Zips build output to `App/Client/Build/{app_name}_{timestamp}.zip`. |
 | `cleanBuild/copyPublic/getDirContents(...)` | File system helpers. |
 | `saveInputs()/restoreInputs(): void` | Saves/restores superglobals and headers during static render loop. |
 
-**Build output:** `.cache/build/` → zipped to `App/Client/Build/`.
+**Build output:** `.tmp/build/` → zipped to `App/Client/Build/`.
 
 ---
 
@@ -749,7 +749,7 @@ Android APK builder (`forge bundle --android`).
 | `run(bool $debug = false): bool` | Syncs Android tools from CDN, cleans build dir, extracts project template. |
 | `syncProject(): void` | Downloads android tools zip if version changed (via `Sync::getData('mobile.android')`). |
 | `downloadProject(...)` | Fetches from `cdn.jsdelivr.net/gh/flamesphp/cdn@{CDN_VERSION}/tools/android.zip.dat`. |
-| `setupProject(): void` | Extracts `install.zip` to `.cache/build-mobile/`. |
+| `setupProject(): void` | Extracts `install.zip` to `.tmp/build-mobile/`. |
 | `cleanBuild/checkBuildPath/getDirContents(...)` | Directory helpers. |
 
 ---
@@ -762,8 +762,8 @@ Executes serialized coroutines in isolated PHP processes. Not intended for direc
 
 | Method | Description |
 |--------|-------------|
-| `__construct(mixed $data)` | Loads serialized coroutine from `.cache/coroutine/{hash}`. |
-| `run(bool $debug = false): bool` | Deserializes args, invokes caller method, writes result to `.cache/coroutine/{sha1(hash)}`. |
+| `__construct(mixed $data)` | Loads serialized coroutine from `.tmp/coroutine/{hash}`. |
+| `run(bool $debug = false): bool` | Deserializes args, invokes caller method, writes result to `.tmp/coroutine/{sha1(hash)}`. |
 | `isCoroutineRunning(): bool` | **Static.** Whether a coroutine is currently executing. |
 | `errorHandler(): bool` | **Static.** Shutdown handler: writes error + buffer to result file. |
 

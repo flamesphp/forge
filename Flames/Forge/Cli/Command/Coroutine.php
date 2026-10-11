@@ -14,13 +14,11 @@ final class Coroutine
     private static bool $isCoroutineRunning = false;
     private static ?self $currentCoroutine  = null;
 
-    private const string BASE_FOLDER = '.cache/coroutine/';
-
     private ?array $coroutine = null;
 
     public function __construct(mixed $data)
     {
-        $path = ROOT_PATH . self::BASE_FOLDER . $data->argument[0];
+        $path = self::baseFolder() . $data->argument[0];
         if (!file_exists($path)) {
             return;
         }
@@ -53,10 +51,10 @@ final class Coroutine
         $buffer   = ob_get_contents();
         @ob_end_clean();
 
-        $hashPath = ROOT_PATH . self::BASE_FOLDER . $this->coroutine['hash'];
+        $hashPath = self::baseFolder() . $this->coroutine['hash'];
         if (file_exists($hashPath)) {
             file_put_contents(
-                ROOT_PATH . self::BASE_FOLDER . sha1($this->coroutine['hash']),
+                self::baseFolder() . sha1($this->coroutine['hash']),
                 serialize([
                     'buffer'   => $buffer,
                     'response' => serialize($response),
@@ -84,10 +82,10 @@ final class Coroutine
             return true;
         }
 
-        $hashPath = ROOT_PATH . self::BASE_FOLDER . $coroutine->coroutine['hash'];
+        $hashPath = self::baseFolder() . $coroutine->coroutine['hash'];
         if (file_exists($hashPath)) {
             file_put_contents(
-                ROOT_PATH . self::BASE_FOLDER . sha1($coroutine->coroutine['hash']),
+                self::baseFolder() . sha1($coroutine->coroutine['hash']),
                 serialize([
                     'buffer'   => $buffer,
                     'response' => serialize(null),
@@ -97,5 +95,10 @@ final class Coroutine
         }
 
         return true;
+    }
+
+    private static function baseFolder(): string
+    {
+        return rtrim(\Flames\Framework\Cache::getPath(), '/') . '/coroutine/';
     }
 }

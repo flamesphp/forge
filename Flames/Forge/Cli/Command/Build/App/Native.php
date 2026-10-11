@@ -48,7 +48,7 @@ class Native
 
         $this->debug = $debug;
 
-        $this->buildPath  = ROOT_PATH . '.cache/build-native/';
+        $this->buildPath  = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/build-native/';
         $this->assetsPath = FLAMES_PATH . 'Cli/Command/Build/App/Native/Desktop/';
 
         $this->checkBuildPath();
@@ -482,7 +482,7 @@ class Native
 
     protected function verifyIssrc(): string
     {
-        $issrcPath = ROOT_PATH . '.cache/tools/issrc/';
+        $issrcPath = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/tools/issrc/';
         if (!is_dir($issrcPath)) {
             $mask = umask(0);
             mkdir($issrcPath, 0777, true);

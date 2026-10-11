@@ -28,7 +28,7 @@ final readonly class Show
             return true;
         }
 
-        $cacheDir = ROOT_PATH . '.cache/.flames/schedules/';
+        $cacheDir = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/.flames/schedules/';
         $now      = time();
         $col      = [18, 14, 14, 8, 11];
 

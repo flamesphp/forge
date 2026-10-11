@@ -27,7 +27,7 @@ final readonly class Install
 
         $php      = $this->findPhpBinary();
         $rootPath = rtrim(ROOT_PATH, '/');
-        $logPath  = ROOT_PATH . '.cache/.flames/schedules/cron.log';
+        $logPath  = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/.flames/schedules/cron.log';
         $cronCmd  = "* * * * * cd {$rootPath} && {$php} forge schedule run >> {$logPath} 2>&1";
         $marker   = 'forge schedule run';
 

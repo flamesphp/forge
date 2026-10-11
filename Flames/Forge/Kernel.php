@@ -113,7 +113,7 @@ final class Kernel
      */
     private static function getAppContainer(string $projectRoot): ?string
     {
-        if (!file_exists($projectRoot . DIRECTORY_SEPARATOR . 'docker-compose.yml')) {
+        if (!file_exists($projectRoot . DIRECTORY_SEPARATOR . 'compose.yml')) {
             return null;
         }
 

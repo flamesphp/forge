@@ -26,7 +26,7 @@ final readonly class Stop
             return false;
         }
 
-        $cacheDir = ROOT_PATH . '.cache/.flames/schedules/';
+        $cacheDir = rtrim(\Flames\Framework\Cache::getPath(), '/') . '/.flames/schedules/';
         $locks    = glob($cacheDir . '*.*.lock') ?: [];
 
         if (empty($locks)) {
