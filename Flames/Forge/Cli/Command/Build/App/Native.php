@@ -258,7 +258,7 @@ class Native
 
         $iconPath = APP_PATH . 'Client/Resource/icon.png';
         if (!file_exists($iconPath)) {
-            $iconPath = FLAMES_PATH . 'Kernel/Client/Engine/Flames.png';
+            $iconPath = FLAMES_PATH . 'framework/Flames/(deprecated)/Kernel/Client/Engine/Flames.png';
             $this->log("App Icon not found, please put at 'App/Client/Resource/icon.png'. Using default value.\n");
             sleep(1);
         }
