@@ -48,19 +48,20 @@ final class Kernel
         }
 
         $command = $filteredArgs[0] ?? null;
+        $runHelp = $command === null || $command === '';
 
         // ── 2. Docker routing ─────────────────────────────────────────────────
-        if (!$forceNative && !isset(self::LOCAL_ONLY[$command])) {
-            if ($forceContainer || self::dockerIsRunning()) {
-                $container = self::getAppContainer($projectRoot);
-                if ($container !== null) {
-                    $innerArgs = implode(' ', array_map(escapeshellarg(...), $filteredArgs));
-                    passthru(
-                        'docker exec -it ' . escapeshellarg($container) . ' php forge ' . $innerArgs,
-                        $exitCode
-                    );
-                    exit($exitCode ?? 0);
-                }
+        // Help runs on the host when PHP can boot the project (fast). Otherwise
+        // fall back to the app container like any other forge command.
+        $hostCanRun = self::hostCanRunLocally($projectRoot, $kernelFile);
+        $routeToContainer = !$forceNative
+            && (!$runHelp || !$hostCanRun)
+            && !isset(self::LOCAL_ONLY[$command ?? '']);
+
+        if ($routeToContainer && ($forceContainer || self::dockerIsRunning())) {
+            $container = self::getAppContainer($projectRoot);
+            if ($container !== null) {
+                self::execInContainer($container, $filteredArgs);
             }
         }
 
@@ -89,6 +90,38 @@ final class Kernel
     // ─────────────────────────────────────────────────────────────────────────
     // Docker helpers
     // ─────────────────────────────────────────────────────────────────────────
+
+    private static function hostCanRunLocally(string $projectRoot, string $kernelFile): bool
+    {
+        if (!is_file($projectRoot . DIRECTORY_SEPARATOR . $kernelFile)) {
+            return false;
+        }
+
+        return version_compare(PHP_VERSION, '8.5.0', '>=');
+    }
+
+    /** @param list<string> $filteredArgs */
+    private static function execInContainer(string $container, array $filteredArgs): never
+    {
+        $innerArgs = implode(' ', array_map(escapeshellarg(...), $filteredArgs));
+        $flags     = self::dockerExecFlags();
+
+        passthru(
+            'docker exec ' . $flags . ' ' . escapeshellarg($container) . ' php forge ' . $innerArgs,
+            $exitCode
+        );
+
+        exit($exitCode ?? 0);
+    }
+
+    private static function dockerExecFlags(): string
+    {
+        if (function_exists('posix_isatty') && defined('STDIN') && posix_isatty(STDIN)) {
+            return '-it';
+        }
+
+        return '-i';
+    }
 
     /**
      * Returns true when the Docker daemon is reachable and we are NOT already

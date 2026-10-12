@@ -29,6 +29,7 @@ use Flames\Forge\Cli\Command\Schedules\Show          as SchedulesShow;
 use Flames\Forge\Cli\Command\Schedules\Stop          as SchedulesStop;
 use Flames\Forge\Cli\Command\Server;
 use Flames\Forge\Cli\Command\Shell;
+use Flames\Forge\Cli\Command\Code\Obfuscate as CodeObfuscate;
 use Flames\Forge\Cli\Command\Sast;
 use Flames\Forge\Cli\Command\Upgrade;
 use Flames\Collection\Arr;
@@ -71,6 +72,7 @@ final class System
         'cache purge kernel' => Cache::class,
         'cache purge all'    => Cache::class,
         'code upgrade'       => Upgrade::class,
+        'code obfuscate'     => CodeObfuscate::class,
         'code sast'          => Sast::class,
         'internal:coroutine' => Coroutine::class,
     ];
@@ -101,6 +103,8 @@ final class System
         ['code upgrade {php} [{path}] --preview',   'Preview code upgrades without saving'],
         ['code upgrade {php} [{path}] --clear-cache', 'Clear upgrade cache before running'],
         ['code sast [{path}]',                        'Run SonarQube SAST on App/ or a specific path'],
+        ['code obfuscate {path}',                     'Obfuscate a .js file or all .js files under a directory'],
+        ['code obfuscate {path} --preview',           'Print obfuscated output without writing files'],
     ];
 
     private const array SCHEDULE_HELP = [
