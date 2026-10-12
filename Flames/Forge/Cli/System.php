@@ -32,6 +32,7 @@ use Flames\Forge\Cli\Command\Shell;
 use Flames\Forge\Cli\Command\Sast;
 use Flames\Forge\Cli\Command\Upgrade;
 use Flames\Collection\Arr;
+use Flames\Framework\Dispatch as FrameworkDispatch;
 use Flames\Framework\Event;
 use Flames\Router;
 use Flames\Interfaces\Event\Route as RouteContract;
@@ -267,7 +268,18 @@ final class System
             if ($command !== '' && Container::serviceExists($command)) {
                 return $this->runContainerService($command);
             }
-            $this->dispatchHelper();
+
+            $cliResult = $this->runApplicationCliCommand();
+            if ($cliResult !== null) {
+                return $cliResult;
+            }
+
+            if ($command === '') {
+                $this->dispatchHelper();
+                return true;
+            }
+
+            $this->dispatchUnknownCommand($command, $args);
             return false;
         }
 
@@ -337,6 +349,42 @@ final class System
         $args     = array_slice($_SERVER['argv'], 2);
         $instance = new Container($this->data);
         return $instance->runExec($service, array_values($args));
+    }
+
+    private function runApplicationCliCommand(): ?bool
+    {
+        try {
+            $match = Router::getMatch();
+            if ($match === null || $match->command === null) {
+                return null;
+            }
+
+            if ($this->debug) {
+                Output::logo();
+                Output::blank();
+                echo Output::CYAN . Output::BOLD . '  Running ' . Output::RESET
+                    . Output::GREEN . Output::BOLD . $match->command . Output::RESET
+                    . "\n\n";
+            }
+
+            return FrameworkDispatch::dispatchMatch($match);
+        } catch (\Throwable $e) {
+            \Flames\Framework\Boot::renderException($e);
+
+            return false;
+        }
+    }
+
+    private function dispatchUnknownCommand(string $command, array $args): void
+    {
+        $attempted = trim($command . ' ' . implode(' ', $args));
+
+        Output::logo();
+        Output::blank();
+        Output::error('Unknown command: "' . $attempted . '"');
+        Output::blank();
+        Output::info('Run "forge" without arguments to list available commands.');
+        Output::blank();
     }
 
     private function dispatchHelper(): void

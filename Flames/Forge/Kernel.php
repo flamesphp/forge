@@ -80,10 +80,10 @@ final class Kernel
 
     public static function run(): never
     {
-        $system = new \Flames\Forge\Cli\System();
-        $system->run();
+        $system  = new \Flames\Forge\Cli\System();
+        $success = $system->run();
 
-        exit(0);
+        exit($success ? 0 : 1);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
